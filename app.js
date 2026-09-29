@@ -5,7 +5,13 @@ let db=null,user=null,profile=null;
 let records={meals:[],activities:[],body:[],workoutSessions:[],workoutExercises:[],photos:[],water:[],sleep:[],steps:[],hr:[]};
 let selectedFoods=[], currentCategory="Main", currentCalendarDate=new Date();
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
-const show=id=>{["setupScreen","authScreen","app"].forEach(x=>$("#"+x)?.classList.toggle("hidden",x!==id)); const app=$("#app"); if(app) app.style.display = id==="app"? "flex" : "none"; const auth=$("#authScreen"); if(auth) auth.style.display = id==="authScreen"? "block" : "none"; };
+const show=id=>{
+  ["setupScreen","authScreen","app"].forEach(x=>{
+    const el=$("#"+x);
+    if(!el) return;
+    el.classList.toggle("hidden", x!==id);
+  });
+};
 const toast=(m,bad=false)=>{const t=$("#toast"); if(!t) return; t.textContent=m; t.style.background=bad?"#ff7a86":"#c6ff00"; t.style.color=bad?"#fff":"#000"; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),3000)};
 const esc=v=>{const d=document.createElement("div");d.textContent=String(v??"");return d.innerHTML};
 const config=()=>({url:SUPABASE_URL,key:SUPABASE_KEY});
@@ -21,49 +27,67 @@ async function boot(){
     client();
     const {data:{session}} = await db.auth.getSession();
     if(session){ user=session.user; await enterApp(); }
-    else show("authScreen");
-    db.auth.onAuthStateChange(async (ev,s)=>{ if(ev==="SIGNED_IN"&&s?.user){ user=s.user; await enterApp(); } if(ev==="SIGNED_OUT") show("authScreen") });
+    else { show("authScreen"); if(window.setAuthTab) window.setAuthTab("login"); }
+    db.auth.onAuthStateChange(async (ev,s)=>{
+      if(ev==="SIGNED_IN"&&s?.user){ user=s.user; await enterApp(); }
+      if(ev==="SIGNED_OUT"){ show("authScreen"); if(window.setAuthTab) window.setAuthTab("login"); }
+    });
   }catch(e){ console.error(e); show("authScreen"); toast(e.message,true) }
 }
 
-// Auth tabs
-$$('[data-auth-tab]').forEach(b=>b.onclick=()=>{
-  $$('[data-auth-tab]').forEach(x=>{ x.classList.toggle("active",x===b); x.style.background = x===b? "#1c1c1c" : "#111"; x.style.color = x===b? "#ededed" : "#8a8a8a"; });
-  const isLogin=b.dataset.authTab==="login";
-  $("#loginForm").style.display=isLogin?"grid":"none";
-  $("#signupForm").style.display=isLogin?"none":"grid";
-});
-$("#loginForm")?.addEventListener("submit", async e=>{
-  e.preventDefault();
-  const f=new FormData(e.currentTarget);
-  const {data,error}=await db.auth.signInWithPassword({email:f.get("email").trim(),password:f.get("password")});
-  if(error) return toast(error.message,true);
-  user=data.user; await enterApp(); toast("Welcome back");
-});
-$("#signupForm")?.addEventListener("submit", async e=>{
-  e.preventDefault();
-  const f=new FormData(e.currentTarget);
-  if(f.get("password")!==f.get("confirm_password")) return toast("Passwords mismatch",true);
-  const detail={
-    full_name:f.get("full_name").trim(),
-    date_of_birth:f.get("date_of_birth"),
-    height_cm:f.get("height_cm"),
-    current_weight_kg:f.get("current_weight_kg"),
-    starting_weight_kg:f.get("current_weight_kg"),
-    target_weight_kg:f.get("target_weight_kg"),
-    primary_goal:f.get("primary_goal"),
-    target_calories:f.get("target_calories"),
-    target_protein_g:f.get("target_protein_g"),
-    target_steps:"10000", target_sleep_hours:"7.5",
-  };
-  const {data,error}=await db.auth.signUp({email:f.get("email").trim(),password:f.get("password"),options:{data:detail}});
-  if(error) return toast(error.message,true);
-  if(data.session){ user=data.user; await enterApp(); toast("Account created"); }
-  else { toast("Check email to confirm"); document.querySelector('[data-auth-tab="login"]').click() }
-});
-$("#forgotButton")?.addEventListener('click',async()=>{ const email=prompt("Email:"); if(!email) return; const {error}=await db.auth.resetPasswordForEmail(email); toast(error?error.message:"Reset sent",!!error); });
-$("#logoutButton")?.addEventListener('click',async()=>{ await db.auth.signOut(); user=null; profile=null; show("authScreen") });
-$("#syncButton")?.addEventListener('click',async()=>{ await loadRecords(); renderAll(); toast("Synced") });
+// FIXED AUTH - uses setAuthTab from index.html, no inline style.display
+function initAuth(){
+  const loginForm=$("#loginForm");
+  const signupForm=$("#signupForm");
+  const createBtn=$("#createAccountBtn");
+  if(createBtn){ createBtn.disabled=false; createBtn.style.pointerEvents="auto"; createBtn.style.opacity="1"; }
+
+  loginForm?.addEventListener("submit", async e=>{
+    e.preventDefault();
+    const f=new FormData(e.currentTarget);
+    const btn=e.currentTarget.querySelector('button[type="submit"]');
+    const oldText=btn?btn.textContent:"";
+    if(btn){ btn.disabled=true; btn.textContent="Signing in..."; }
+    const {data,error}=await db.auth.signInWithPassword({email:String(f.get("email")||"").trim(),password:String(f.get("password")||"")});
+    if(btn){ btn.disabled=false; btn.textContent=oldText; }
+    if(error) return toast(error.message,true);
+    user=data.user; await enterApp(); toast("Welcome back");
+  });
+
+  signupForm?.addEventListener("submit", async e=>{
+    e.preventDefault();
+    const f=new FormData(e.currentTarget);
+    const pass=String(f.get("password")||"");
+    const confirm=String(f.get("confirm_password")||"");
+    if(pass!==confirm) return toast("Passwords mismatch",true);
+    if(pass.length<8) return toast("Password min 8 chars",true);
+    const btn=e.currentTarget.querySelector('button[type="submit"]');
+    const oldText=btn?btn.textContent:"";
+    if(btn){ btn.disabled=true; btn.textContent="Creating..."; }
+
+    const detail={
+      full_name:String(f.get("full_name")||"").trim()||"User",
+      date_of_birth:String(f.get("date_of_birth")||"")||null,
+      height_cm:String(f.get("height_cm")||"170"),
+      current_weight_kg:String(f.get("current_weight_kg")||"70"),
+      starting_weight_kg:String(f.get("current_weight_kg")||"70"),
+      target_weight_kg:String(f.get("target_weight_kg")||"68"),
+      primary_goal:String(f.get("primary_goal")||"lose_weight"),
+      target_calories:String(f.get("target_calories")||"2200"),
+      target_protein_g:String(f.get("target_protein_g")||"180"),
+      target_steps:"10000", target_sleep_hours:"7.5",
+    };
+    const {data,error}=await db.auth.signUp({email:String(f.get("email")||"").trim(),password:pass,options:{data:detail}});
+    if(btn){ btn.disabled=false; btn.textContent=oldText; }
+    if(error) return toast(error.message,true);
+    if(data.session){ user=data.user; await enterApp(); toast("Account created"); }
+    else { toast("Account created — if email confirmation is ON, check email. Or disable it in Auth settings"); if(window.setAuthTab) window.setAuthTab("login"); }
+  });
+
+  $("#forgotButton")?.addEventListener('click',async()=>{ const email=prompt("Email for reset:"); if(!email) return; const {error}=await db.auth.resetPasswordForEmail(email); toast(error?error.message:"Reset sent — check email",!!error); });
+  $("#logoutButton")?.addEventListener('click',async()=>{ await db.auth.signOut(); user=null; profile=null; show("authScreen"); if(window.setAuthTab) window.setAuthTab("login"); });
+  $("#syncButton")?.addEventListener('click',async()=>{ await loadRecords(); renderAll(); toast("Synced") });
+}
 
 async function enterApp(){
   show("app");
@@ -109,8 +133,8 @@ async function loadRecords(){
 async function handleFoodPhoto(file){
   if(!file) return;
   const status=$("#foodPhotoStatus"), previewWrap=$("#mealPhotoPreview"), previewImg=$("#mealPreviewImg"), logBtn=$("#logMealBtn");
-  if(previewWrap&&previewImg){ previewImg.src=URL.createObjectURL(file); previewWrap.style.display="block"; }
-  if(status) status.innerHTML=`<div style="display:flex;gap:10px;align-items:center"><div style="width:18px;height:18px;border:2px solid #333;border-top-color:#c6ff00;border-radius:50%;animation:spin 0.8s linear infinite"></div><strong>AI Analyzing...</strong></div>`;
+  if(previewWrap&&previewImg){ previewImg.src=URL.createObjectURL(file); previewWrap.classList.remove("hidden"); }
+  if(status) status.innerHTML=`<div style="display:flex;gap:10px;align-items:center"><div class="spinner"></div><strong>AI Analyzing...</strong></div>`;
   if(logBtn){ logBtn.disabled=true; logBtn.textContent='Analyzing...'; }
   try{
     const res=await AI.analyzeFoodPhoto(file);
@@ -125,8 +149,8 @@ function initUI(){
   $$('[data-view]').forEach(b=>b.onclick=()=>switchView(b.dataset.view));
   $$('[data-open]').forEach(b=>b.onclick=()=>{ const d=$("#"+b.dataset.open); if(!d) return; d.showModal?.(); });
   $$('[data-close]').forEach(b=>b.onclick=()=>b.closest("dialog")?.close());
-  const cats=Object.keys(window.FOOD_DB||{}); const ct=$("#mealCatTabs"); if(ct) ct.innerHTML=cats.map(c=>`<button type="button" data-cat="${c}" style="background:#1c1c1c;border:1px solid #242424;color:#8a8a8a;padding:6px 10px;border-radius:8px;font-size:12px">${c}</button>`).join("");
-  $$('#mealCatTabs [data-cat]').forEach(b=>b.onclick=()=>{ currentCategory=b.dataset.cat; renderMealOptions(); });
+  const cats=Object.keys(window.FOOD_DB||{}); const ct=$("#mealCatTabs"); if(ct) ct.innerHTML=cats.map(c=>`<button type="button" data-cat="${c}" class="btn small">${c}</button>`).join("");
+  ct?.querySelectorAll('[data-cat]')?.forEach(b=>b.addEventListener('click',()=>{ currentCategory=b.dataset.cat; renderMealOptions(); }));
   $("#mealCameraInput")?.addEventListener('change',e=>handleFoodPhoto(e.target.files[0]));
   $("#foodPhotoInput")?.addEventListener('change',e=>handleFoodPhoto(e.target.files[0]));
   $("#bodyForm")?.addEventListener('submit',saveBody);
@@ -149,29 +173,29 @@ function switchView(id){
   $$('[data-view]').forEach(x=>x.classList.toggle("active",x.dataset.view===id));
   $$('.view').forEach(v=>v.classList.toggle("active",v.id===id));
   const titles={dashboardView:'Dashboard',monthlyView:'Monthly',activitiesView:'Activities',gpxReportView:'GPX Report',foodView:'Nutrition',profileView:'Settings'};
-  $("#pageTitle")&&( $("#pageTitle").textContent=titles[id]||id );
+  const pt=$("#pageTitle"); if(pt) pt.textContent=titles[id]||id;
   window.scrollTo(0,0);
   if(id==="gpxReportView"&&window.GpxReport?.data) setTimeout(()=>{ GpxReport.drawMap?.(); renderGpxDetailCharts(); },200);
 }
 function renderAll(){
   const latestWeight=records.body[0]?.weight_kg||profile?.current_weight_kg||0;
   const startWeight=[...records.body].sort((a,b)=>new Date(a.logged_at)-new Date(b.logged_at))[0]?.weight_kg||profile?.starting_weight_kg||latestWeight;
-  $("#weightValue")&&( $("#weightValue").textContent=latestWeight||"--" );
-  $("#weightSub")&&( $("#weightSub").textContent=`Start ${startWeight}kg` );
-  const todayCal=records.meals.filter(m=>isToday(m.logged_at)).reduce((s,x)=>s+x.calories,0);
-  const todayPro=records.meals.filter(m=>isToday(m.logged_at)).reduce((s,x)=>s+Number(x.protein_g),0);
-  $("#calValue")&&( $("#calValue").textContent=todayCal );
-  $("#calTarget")&&( $("#calTarget").textContent=`${profile.target_calories} target` );
-  $("#proValue")&&( $("#proValue").textContent=Math.round(todayPro) );
-  $("#proTarget")&&( $("#proTarget").textContent=`${profile.target_protein_g}g` );
-  $("#stepsValue")&&( $("#stepsValue").textContent=records.steps.filter(s=>isToday(s.logged_at)).reduce((s,x)=>s+x.steps,0).toLocaleString() );
+  const wv=$("#weightValue"); if(wv) wv.textContent=latestWeight||"--";
+  const ws=$("#weightSub"); if(ws) ws.textContent=`Start ${startWeight}kg`;
+  const todayCal=records.meals.filter(m=>isToday(m.logged_at)).reduce((s,x)=>s+Number(x.calories||0),0);
+  const todayPro=records.meals.filter(m=>isToday(m.logged_at)).reduce((s,x)=>s+Number(x.protein_g||0),0);
+  const cv=$("#calValue"); if(cv) cv.textContent=todayCal;
+  const ct=$("#calTarget"); if(ct) ct.textContent=`${profile?.target_calories||2200} target`;
+  const pv=$("#proValue"); if(pv) pv.textContent=Math.round(todayPro);
+  const pt=$("#proTarget"); if(pt) pt.textContent=`${profile?.target_protein_g||180}g`;
+  const sv=$("#stepsValue"); if(sv) sv.textContent=records.steps.filter(s=>isToday(s.logged_at)).reduce((s,x)=>s+Number(x.steps||0),0).toLocaleString();
   renderMealOptions(); renderTodayLogs(); renderDreeveCharts(); renderActivitiesTable(); renderCalendar();
 }
 function renderTodayLogs(){
   const el=$("#todayLogs"); if(!el) return;
   const items=[...records.meals.map(x=>({...x,_d:x.meal_name,_m:`${x.calories} kcal`})),
-             ...records.activities.map(x=>({...x,_d:x.activity_name,_m:`${x.distance_km}km`}))]
-             .sort((a,b)=>new Date(b.logged_at)-new Date(a.logged_at));
+            ...records.activities.map(x=>({...x,_d:x.activity_name,_m:`${x.distance_km}km`}))]
+            .sort((a,b)=>new Date(b.logged_at)-new Date(a.logged_at));
   el.innerHTML=items.slice(0,8).map(x=>`<div class="row"><div><strong>${esc(x._d)}</strong><br><small class="muted">${new Date(x.logged_at).toLocaleTimeString()} • ${x._m}</small></div></div>`).join('')||'<div class="muted">No logs today</div>';
 }
 function renderMealOptions(){
@@ -192,21 +216,21 @@ window.toggleFood=(idx)=>{
 function addSelected(item){ selectedFoods.push({idx:-1,cat:'Custom',name:item.name,kcal:item.kcal,protein:item.protein,carbs:item.carbs||0,fat:item.fat||0}); renderSelected(); }
 function renderSelected(){
   const cont=$("#mealSelected"); if(!cont) return;
-  const totalK=selectedFoods.reduce((s,x)=>s+x.kcal,0);
-  cont.innerHTML=selectedFoods.map((s,i)=>`<div class="row"><div><strong>${esc(s.name)}</strong> ${s.kcal}kcal</div><button class="link" onclick="removeSelected(${i})" style="background:transparent;border:0;color:#c6ff00">✕</button></div>`).join('')+(totalK?`<div style="margin-top:8px"><strong>Total ${totalK} kcal</strong></div>`:'');
+  const totalK=selectedFoods.reduce((s,x)=>s+Number(x.kcal||0),0);
+  cont.innerHTML=selectedFoods.map((s,i)=>`<div class="row"><div><strong>${esc(s.name)}</strong> ${s.kcal}kcal</div><button class="link" onclick="removeSelected(${i})" type="button">✕</button></div>`).join('')+(totalK?`<div style="margin-top:8px"><strong>Total ${totalK} kcal</strong></div>`:'');
   const dCont=$("#mealSelectedDialog"); if(dCont) dCont.innerHTML=cont.innerHTML;
   const btn=$("#logMealBtn"); if(btn) btn.textContent=selectedFoods.length?`Log ${totalK} kcal`:'Log Meal';
 }
 window.removeSelected=(i)=>{ selectedFoods.splice(i,1); renderMealOptions(); renderSelected(); };
 async function saveMeal(e){ e.preventDefault(); if(!selectedFoods.length) return toast("Select food first",true);
-  const totalK=selectedFoods.reduce((s,x)=>s+x.kcal,0); const totalP=selectedFoods.reduce((s,x)=>s+Number(x.protein),0);
+  const totalK=selectedFoods.reduce((s,x)=>s+Number(x.kcal||0),0); const totalP=selectedFoods.reduce((s,x)=>s+Number(x.protein||0),0);
   const name=selectedFoods.map(s=>s.name).join(' + ');
   const {error}=await db.from('meal_logs').insert({user_id:user.id,meal_name:name,calories:totalK,protein_g:totalP,carbs_g:0,fat_g:0,source:'Manual',logged_at:new Date().toISOString()});
   if(error) return toast(error.message,true);
   selectedFoods=[]; renderSelected(); $("#mealDialog")?.close(); await loadRecords(); renderAll(); toast(`Logged ${totalK} kcal`);
 }
 async function saveBody(e){ e.preventDefault(); const fd=new FormData(e.currentTarget); const {error}=await db.from('body_logs').insert({user_id:user.id,weight_kg:parseFloat(fd.get('weight_kg')),logged_at:new Date().toISOString()}); if(error) return toast(error.message,true); e.currentTarget.closest('dialog')?.close(); await loadRecords(); renderAll(); }
-function buildProfileForm(){ const f=$("#profileForm"); if(!f||!profile) return; f.innerHTML=`<label>Full name<input name="full_name" value="${esc(profile.full_name)}" style="width:100%;background:#0a0a0a;border:1px solid #242424;color:#ededed;padding:8px;border-radius:8px"></label><label>Target kg<input name="target_weight_kg" type="number" value="${profile.target_weight_kg}" style="width:100%;background:#0a0a0a;border:1px solid #242424;color:#ededed;padding:8px;border-radius:8px"></label><button class="btn primary" type="submit" style="background:#c6ff00;color:#000;border:0;padding:10px;border-radius:8px;font-weight:800">Save</button>`; f.onsubmit=async e=>{ e.preventDefault(); const fd=new FormData(f); const {error}=await db.from("profiles").update({full_name:fd.get("full_name"),target_weight_kg:+fd.get("target_weight_kg")}).eq("id",user.id); if(error) return toast(error.message,true); toast("Saved"); }; }
+function buildProfileForm(){ const f=$("#profileForm"); if(!f||!profile) return; f.innerHTML=`<label>Full name<input name="full_name" value="${esc(profile.full_name||'')}" ></label><label>Target kg<input name="target_weight_kg" type="number" step="0.1" value="${profile.target_weight_kg||68}"></label><button class="btn primary" type="submit">Save</button>`; f.onsubmit=async e=>{ e.preventDefault(); const fd=new FormData(f); const {error}=await db.from("profiles").update({full_name:String(fd.get("full_name")||""),target_weight_kg:+fd.get("target_weight_kg")}).eq("id",user.id); if(error) return toast(error.message,true); toast("Saved"); }; }
 
 let monthlyChartObj=null, sportChartObj=null, weightChartObj=null, eleHrChartObj=null, monthDetailChartObj=null;
 function renderDreeveCharts(){
@@ -217,9 +241,9 @@ function renderDreeveCharts(){
   allActs=[...allActs,...records.steps.map(s=>({distance_km:s.distance_km||0,duration_minutes:0,logged_at:s.logged_at,activity_name:'Walking',calories_burned:0}))];
   const totalDist=allActs.reduce((s,a)=>s+Number(a.distance_km||0),0);
   const totalMin=allActs.reduce((s,a)=>s+Number(a.duration_minutes||0),0);
-  $("#sbDist")&&( $("#sbDist").textContent=totalDist.toFixed(1)+' km' );
-  $("#sbTime")&&( $("#sbTime").textContent=(totalMin/60).toFixed(1)+' h' );
-  $("#sbCount")&&( $("#sbCount").textContent=records.activities.length );
+  const sbD=$("#sbDist"); if(sbD) sbD.textContent=totalDist.toFixed(1)+' km';
+  const sbT=$("#sbTime"); if(sbT) sbT.textContent=(totalMin/60).toFixed(1)+' h';
+  const sbC=$("#sbCount"); if(sbC) sbC.textContent=records.activities.length;
   const metric=$("#chartMetric")?.value||'distance';
   const byMonth={}; for(let i=11;i>=0;i--){ const d=new Date(); d.setMonth(d.getMonth()-i); const k=d.toISOString().slice(0,7); byMonth[k]=0; }
   allActs.forEach(a=>{ const k=new Date(a.logged_at).toISOString().slice(0,7); if(byMonth[k]!==undefined){ if(metric==='distance') byMonth[k]+=Number(a.distance_km||0); else if(metric==='duration') byMonth[k]+=Number(a.duration_minutes||0); else if(metric==='calories') byMonth[k]+=Number(a.calories_burned||0); else byMonth[k]+=Number(a.distance_km||0); } });
@@ -227,17 +251,17 @@ function renderDreeveCharts(){
   const ctx=document.getElementById('monthlyChart');
   if(ctx){
     if(monthlyChartObj) monthlyChartObj.destroy();
-    monthlyChartObj=new Chart(ctx,{type:'bar',data:{labels,[STRIPPED] if(els.length){ const m=labels[els[0].index]; $("#chartHint")&&( $("#chartHint").textContent='Drill: '+m ); renderMonthDetail(m); switchView('monthlyView'); }},plugins:{legend:{display:false}},scales:{x:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'}},y:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'}}}}});
+    monthlyChartObj=new Chart(ctx,{type:'bar',data:{labels,datasets:[{data:vals,backgroundColor:'#c6ff00',borderRadius:8}]},options:{onClick:(evt,els)=>{ if(els.length){ const m=labels[els[0].index]; const ch=$("#chartHint"); if(ch) ch.textContent='Drill: '+m; renderMonthDetail(m); switchView('monthlyView'); }},plugins:{legend:{display:false}},scales:{x:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'}},y:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'}}}}});
   }
   const bySport={}; allActs.forEach(a=>{ const s=a.activity_name||'Workout'; bySport[s]=(bySport[s]||0)+(metric==='duration'?Number(a.duration_minutes||0):Number(a.distance_km||0)); });
   const ctx2=document.getElementById('sportChart');
   if(ctx2&&Object.keys(bySport).length){
     if(sportChartObj) sportChartObj.destroy();
-    sportChartObj=new Chart(ctx2,{type:'doughnut',data:{labels:Object.keys(bySport),[STRIPPED] if(els.length){ const sport=Object.keys(bySport)[els[0].index]; $("#searchAct")&&( $("#searchAct").value=sport ); renderActivitiesTable(sport); switchView('activitiesView'); }},plugins:{legend:{position:'bottom',labels:{color:'#8a8a8a',boxWidth:12}}}}});
+    sportChartObj=new Chart(ctx2,{type:'doughnut',data:{labels:Object.keys(bySport),datasets:[{data:Object.values(bySport),backgroundColor:['#c6ff00','#58a9ff','#5de8b6','#ff7a86','#ffcb47','#a78bfa']}]},options:{onClick:(evt,els)=>{ if(els.length){ const sport=Object.keys(bySport)[els[0].index]; const si=$("#searchAct"); if(si) si.value=sport; renderActivitiesTable(sport); switchView('activitiesView'); }},plugins:{legend:{position:'bottom',labels:{color:'#8a8a8a',boxWidth:12}}}}});
   }
   const weights=[...records.body].sort((a,b)=>new Date(a.logged_at)-new Date(b.logged_at)).slice(-30);
   const ctxW=document.getElementById('weightChart');
-  if(ctxW){ if(weightChartObj) weightChartObj.destroy(); if(weights.length){ weightChartObj=new Chart(ctxW,{type:'line',data:{labels:weights.map(w=>dayStr(w.logged_at).slice(5)),[STRIPPED]
+  if(ctxW){ if(weightChartObj) weightChartObj.destroy(); if(weights.length){ weightChartObj=new Chart(ctxW,{type:'line',data:{labels:weights.map(w=>dayStr(w.logged_at).slice(5)),datasets:[{data:weights.map(w=>w.weight_kg),borderColor:'#c6ff00',backgroundColor:'rgba(198,255,0,.15)',tension:.3,fill:true}]},options:{plugins:{legend:{display:false}},scales:{x:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'}},y:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'}}}}}); }
   }
 }
 function renderMonthDetail(ym){
@@ -245,18 +269,18 @@ function renderMonthDetail(ym){
   const acts=records.activities.filter(a=>new Date(a.logged_at).toISOString().startsWith(ym)).sort((a,b)=>new Date(a.logged_at)-new Date(b.logged_at));
   if(!acts.length){ el.innerHTML=`<div class="muted" style="padding:20px">No activities in ${ym}</div>`; if(canvas) canvas.style.display='none'; return; }
   const byDay={}; acts.forEach(a=>{ const d=dayStr(a.logged_at); byDay[d]=(byDay[d]||0)+Number(a.distance_km||0); });
-  if(canvas){ canvas.style.display='block'; if(monthDetailChartObj) monthDetailChartObj.destroy(); monthDetailChartObj=new Chart(canvas,{type:'bar',data:{labels:Object.keys(byDay),[STRIPPED]
+  if(canvas){ canvas.style.display='block'; if(monthDetailChartObj) monthDetailChartObj.destroy(); monthDetailChartObj=new Chart(canvas,{type:'bar',data:{labels:Object.keys(byDay),datasets:[{data:Object.values(byDay),backgroundColor:'#c6ff00',borderRadius:6}]},options:{plugins:{legend:{display:false}},scales:{x:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'}},y:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'}}}}}); }
   el.innerHTML=acts.map(a=>`<div class="row"><div><strong>${esc(a.activity_name)}</strong><br><small class="muted">${new Date(a.logged_at).toLocaleDateString()} • ${a.distance_km}km</small></div><span>${a.calories_burned||0} kcal</span></div>`).join('');
 }
 function renderActivitiesTable(filter=''){
   const el=document.getElementById('activitiesTable'); if(!el) return;
   let list=[...records.activities].sort((a,b)=>new Date(b.logged_at)-new Date(a.logged_at));
-  if(filter) list=list.filter(a=> new Date(a.logged_at).toISOString().startsWith(filter) || a.activity_name.toLowerCase().includes(filter.toLowerCase()));
+  if(filter) list=list.filter(a=> new Date(a.logged_at).toISOString().startsWith(filter) || String(a.activity_name||"").toLowerCase().includes(filter.toLowerCase()));
   el.innerHTML=list.slice(0,150).map(a=>`<div class="row" style="cursor:pointer" onclick="selectActivity('${a.id}')"><div><strong>${esc(a.activity_name)}</strong><br><small class="muted">${new Date(a.logged_at).toLocaleDateString()} • ${a.distance_km}km • ${a.duration_minutes}min • ${esc(a.source||'')}</small></div><span>${a.calories_burned||0} kcal</span></div>`).join('')||'<div class="muted" style="padding:20px;text-align:center">No activities — import FIT/GPX</div>';
   const recent=document.getElementById('recentActivities'); if(recent) recent.innerHTML=list.slice(0,5).map(a=>`<div class="row"><div>${esc(a.activity_name)} • ${a.distance_km}km</div><small class="muted">${new Date(a.logged_at).toLocaleDateString()}</small></div>`).join('');
 }
 window.selectActivity=(id)=>{ const act=records.activities.find(a=>a.id===id); if(act) toast(`${act.activity_name} • ${act.distance_km}km`); };
-function renderGpxDetailCharts(){ /* handled by gpx-report.js */ }
+function renderGpxDetailCharts(){}
 function renderCalendar(){
   const cal=document.getElementById('calendarGrid'); if(!cal) return;
   const ml=document.getElementById('monthLabel'); if(ml) ml.textContent=currentCalendarDate.toLocaleString('en',{month:'long',year:'numeric'});
@@ -264,7 +288,7 @@ function renderCalendar(){
   const first=new Date(y,m,1); const days=new Date(y,m+1,0).getDate();
   const byDay={}; records.activities.forEach(a=>{ const d=dayStr(a.logged_at); if(new Date(a.logged_at).getMonth()===m&&new Date(a.logged_at).getFullYear()===y) byDay[d]=(byDay[d]||0)+1; });
   let html=''; for(let i=0;i<first.getDay();i++) html+='<div></div>';
-  for(let d=1;d<=days;d++){ const iso=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; const has=byDay[iso]; const isToday=iso===todayStr(); html+=`<div class="${has?'has':''} ${isToday?'today':''}" style="cursor:${has?'pointer':''}" ${has?`onclick="renderMonthDetailDay('${iso}')"` :''}><strong>${d}</strong><br><small>${has?has+'x':''}</small></div>`; }
+  for(let d=1;d<=days;d++){ const iso=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; const has=byDay[iso]; const isTodayFlag=iso===todayStr(); html+=`<div class="${has?'has':''} ${isTodayFlag?'today':''}" ${has?`onclick="renderMonthDetailDay('${iso}')"` :''}><strong>${d}</strong><br><small>${has?has+'x':''}</small></div>`; }
   cal.innerHTML=html;
 }
 window.renderMonthDetailDay=(iso)=>{
@@ -275,6 +299,7 @@ window.handleQuickImport=async()=>{
   const file=document.getElementById("quickImportFile")?.files[0]; if(!file) return toast("Select file",true);
   if(file.name.toLowerCase().endsWith('.gpx')) return handleGpxImport(file);
   if(file.name.toLowerCase().endsWith('.fit')) return handleFitImport(file);
+  return handleFitImport(file);
 };
 window.handleGpxImport=async(fileOverride)=>{
   const file=fileOverride||document.getElementById('quickImportFile')?.files[0]||document.getElementById('gpxReportFile')?.files[0]; if(!file) return toast('Select.gpx',true);
@@ -296,4 +321,5 @@ window.handleFitImport=async(fileOverride)=>{
     if(el) el.textContent=`✅ Imported ${acts.length} FIT`; await loadRecords(); renderAll(); toast(`FIT imported ${acts.length}`);
   }catch(e){ if(el) el.textContent="❌ "+e.message; toast(e.message,true); }
 };
+initAuth();
 boot();
