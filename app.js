@@ -1,12 +1,11 @@
 "use strict";
-// ADINCHOO DREEVE v8.4.1 - CHART STABLE - iPhone 14 PWA
+// ADINCHOO DREEVE v8.4.2 - STABLE + Activities Full Report like GPX
 const SUPABASE_URL = "https://dxgzluurwsoytqlasuup.supabase.co";
 const SUPABASE_KEY = "sb_publishable_RTeGJ9m_CL26fUMXwEGLJQ_JfGiLyit";
 let db=null,user=null,profile=null;
 let records={meals:[],activities:[],body:[],workoutSessions:[],workoutExercises:[],photos:[],water:[],sleep:[],steps:[],hr:[]};
 let selectedFoods=[], currentCategory="Main", currentCalendarDate=new Date();
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
-
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
 const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
 
@@ -117,7 +116,7 @@ function initAuth(){
     if(btn){ btn.disabled=false; btn.textContent=oldText; }
     if(error) return toast(error.message,true);
     if(data.session){ user=data.user; await enterApp(); toast("Account created"); }
-    else { toast("Account created — check email or disable confirm in Supabase"); if(window.setAuthTab) window.setAuthTab("login"); }
+    else { toast("Account created — check email"); if(window.setAuthTab) window.setAuthTab("login"); }
   });
   $("#forgotButton")?.addEventListener('click',async()=>{ const email=prompt("Email for reset:"); if(!email) return; const {error}=await db.auth.resetPasswordForEmail(email); toast(error?error.message:"Reset sent",!!error); });
   $("#logoutButton")?.addEventListener('click',async()=>{ await db.auth.signOut(); user=null; profile=null; show("authScreen"); if(window.setAuthTab) window.setAuthTab("login"); });
@@ -149,7 +148,7 @@ async function loadProfile(){
       target_calories:parseInt(meta.target_calories)||2200, target_protein_g:parseInt(meta.target_protein_g)||180,
       target_steps:10000, target_sleep_hours:7.5,
     };
-    const {data:ins,error:ie}=await db.from("profiles").insert(payload).select().single();
+    const {data:ins,[STRIPPED] db.from("profiles").insert(payload).select().single();
     if(ie){ profile=payload; } else profile=ins;
   } else profile=data;
 }
@@ -171,7 +170,7 @@ async function loadRecords(){
     if(gpxData?.length){
       gpxData.forEach(g=>{
         if(!records.activities.find(a=>a.gpx_track_id===g.id)){
-          records.activities.push({id:g.id, activity_name:g.activity_type, distance_km:g.distance_km, duration_minutes:g.duration_minutes, calories_burned:g.calories_est, source:'GPX', logged_at:g.logged_at, gpx_track_id:g.id});
+          records.activities.push({id:g.id, activity_name:g.activity_type, distance_km:g.distance_km, duration_minutes:g.duration_minutes, calories_burned:g.calories_est, source:'GPX', logged_at:g.logged_at, gpx_track_id:g.id, elevation_gain_m:g.elevation_gain_m, avg_hr:g.avg_hr, max_hr:g.max_hr});
         }
       });
     }
@@ -248,8 +247,8 @@ function renderAll(){
 function renderTodayLogs(){
   const el=$("#todayLogs"); if(!el) return;
   const items=[...records.meals.map(x=>({...x,_d:x.meal_name,_m:`${x.calories} kcal`})),
-           ...records.activities.map(x=>({...x,_d:x.activity_name,_m:`${x.distance_km}km`}))]
-           .sort((a,b)=>new Date(b.logged_at)-new Date(a.logged_at));
+          ...records.activities.map(x=>({...x,_d:x.activity_name,_m:`${x.distance_km}km`}))]
+          .sort((a,b)=>new Date(b.logged_at)-new Date(a.logged_at));
   el.innerHTML=items.slice(0,8).map(x=>`<div class="row"><div><strong>${esc(x._d)}</strong><br><small class="muted">${new Date(x.logged_at).toLocaleTimeString()} • ${x._m}</small></div></div>`).join('')||'<div class="muted">No logs today</div>';
 }
 function renderMealOptions(){
@@ -293,7 +292,6 @@ function destroyCharts(){
 }
 function safeChart(ctx){
   if(!ctx) return null;
-  // Ensure canvas is inside chart-wrap with fixed height
   let wrap=ctx.closest('.chart-wrap');
   if(!wrap){
     const newWrap=document.createElement('div');
@@ -306,94 +304,105 @@ function safeChart(ctx){
 }
 function renderDreeveCharts(){
   if(typeof Chart==='undefined') return;
+  // FIX SIDEBAR TOTALS - ALL TIME not filtered
+  const totalDistAll = records.activities.reduce((s,a)=>s+Number(a.distance_km||0),0);
+  const totalMinAll = records.activities.reduce((s,a)=>s+Number(a.duration_minutes||0),0);
+  const sbD=$("#sbDist"); if(sbD) sbD.textContent=totalDistAll.toFixed(1)+' km';
+  const sbT=$("#sbTime"); if(sbT) sbT.textContent=(totalMinAll/60).toFixed(1)+' h';
+  const sbC=$("#sbCount"); if(sbC) sbC.textContent=records.activities.length;
+
   let allActs=[...records.activities];
   const yearSel=$("#yearFilter")?.value||'All time';
   if(yearSel!=='All time'){ const y=parseInt(yearSel); if(!isNaN(y)) allActs=allActs.filter(a=>new Date(a.logged_at).getFullYear()===y); }
   allActs=[...allActs,...records.steps.map(s=>({distance_km:s.distance_km||0,duration_minutes:0,logged_at:s.logged_at,activity_name:'Walking',calories_burned:0}))];
-  const totalDist=allActs.reduce((s,a)=>s+Number(a.distance_km||0),0);
-  const totalMin=allActs.reduce((s,a)=>s+Number(a.duration_minutes||0),0);
-  const sbD=$("#sbDist"); if(sbD) sbD.textContent=totalDist.toFixed(1)+' km';
-  const sbT=$("#sbTime"); if(sbT) sbT.textContent=(totalMin/60).toFixed(1)+' h';
-  const sbC=$("#sbCount"); if(sbC) sbC.textContent=records.activities.length;
   const metric=$("#chartMetric")?.value||'distance';
   const byMonth={}; for(let i=11;i>=0;i--){ const d=new Date(); d.setMonth(d.getMonth()-i); const k=d.toISOString().slice(0,7); byMonth[k]=0; }
   allActs.forEach(a=>{ const k=new Date(a.logged_at).toISOString().slice(0,7); if(byMonth[k]!==undefined){ if(metric==='distance') byMonth[k]+=Number(a.distance_km||0); else if(metric==='duration') byMonth[k]+=Number(a.duration_minutes||0); else if(metric==='calories') byMonth[k]+=Number(a.calories_burned||0); else byMonth[k]+=Number(a.distance_km||0); } });
   const labels=Object.keys(byMonth); const vals=labels.map(k=>Number(byMonth[k].toFixed(2)));
-
-  // MONTHLY - STABLE
-  let ctx=document.getElementById('monthlyChart');
-  ctx=safeChart(ctx);
+  let ctx=document.getElementById('monthlyChart'); ctx=safeChart(ctx);
   if(ctx){
     if(monthlyChartObj) { try{ monthlyChartObj.destroy(); }catch(e){} }
-    monthlyChartObj=new Chart(ctx,{
-      type:'bar',
-      data:{labels,datasets:[{data:vals,backgroundColor:'#c6ff00',borderRadius:6,borderSkipped:false,maxBarThickness:32}]},
-      options:{
-        responsive:true, maintainAspectRatio:false, animation:false, resizeDelay:250,
-        interaction:{mode:'index',intersect:false},
-        onClick:(e,els)=>{ if(els.length){ const m=labels[els[0].index]; const ch=$("#chartHint"); if(ch) ch.textContent='Drill: '+m; renderMonthDetail(m); switchView('monthlyView'); }},
-        plugins:{legend:{display:false},tooltip:{enabled:true,backgroundColor:'#161616',titleColor:'#ededed',bodyColor:'#8a8a8a'}},
-        scales:{x:{grid:{display:false},ticks:{color:'#8a8a8a',maxRotation:0,autoSkip:true},border:{display:false}},y:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'},border:{display:false},beginAtZero:true}}
-      }
-    });
+    monthlyChartObj=new Chart(ctx,{type:'bar',data:{labels,datasets:[{label:metric,data:vals,backgroundColor:'#c6ff00',borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,animation:false,resizeDelay:250,interaction:{mode:'index',intersect:false},onClick:(e,els)=>{ if(els.length){ const m=labels[els[0].index]; renderMonthDetail(m); switchView('monthlyView'); }},plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#8a8a8a'}},y:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'},beginAtZero:true}}}});
   }
-  // SPORT - STABLE
   const bySport={}; allActs.forEach(a=>{ const s=a.activity_name||'Workout'; bySport[s]=(bySport[s]||0)+(metric==='duration'?Number(a.duration_minutes||0):Number(a.distance_km||0)); });
-  let ctx2=document.getElementById('sportChart');
-  ctx2=safeChart(ctx2);
+  let ctx2=document.getElementById('sportChart'); ctx2=safeChart(ctx2);
   if(ctx2&&Object.keys(bySport).length){
     if(sportChartObj) { try{ sportChartObj.destroy(); }catch(e){} }
-    sportChartObj=new Chart(ctx2,{
-      type:'doughnut',
-      data:{labels:Object.keys(bySport),datasets:[{data:Object.values(bySport),backgroundColor:['#c6ff00','#58a9ff','#ff7a86','#5de8b6','#ffcc66','#a88bff'],borderWidth:0,hoverOffset:4}]},
-      options:{responsive:true,maintainAspectRatio:false,animation:false,resizeDelay:250,cutout:'62%',onClick:(e,els)=>{ if(els.length){ const sport=Object.keys(bySport)[els[0].index]; const si=$("#searchAct"); if(si) si.value=sport; renderActivitiesTable(sport); switchView('activitiesView'); }},plugins:{legend:{position:'bottom',labels:{color:'#8a8a8a',boxWidth:12,padding:14,usePointStyle:true}}}}
-    });
+    sportChartObj=new Chart(ctx2,{type:'doughnut',data:{labels:Object.keys(bySport),datasets:[{data:Object.values(bySport),backgroundColor:['#c6ff00','#5de8b6','#58a9ff','#ff7a86','#ffd76e','#9d86ff'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,animation:false,resizeDelay:250,cutout:'62%',onClick:(e,els)=>{ if(els.length){ const sport=Object.keys(bySport)[els[0].index]; const si=$("#searchAct"); if(si) si.value=sport; renderActivitiesTable(sport); switchView('activitiesView'); }},plugins:{legend:{position:'bottom',labels:{color:'#8a8a8a',boxWidth:12}}}}});
   }
-  // WEIGHT - STABLE
   const weights=[...records.body].sort((a,b)=>new Date(a.logged_at)-new Date(b.logged_at)).slice(-30);
-  let ctxW=document.getElementById('weightChart');
-  ctxW=safeChart(ctxW);
+  let ctxW=document.getElementById('weightChart'); ctxW=safeChart(ctxW);
   if(ctxW){
     if(weightChartObj) { try{ weightChartObj.destroy(); }catch(e){} }
     if(weights.length){
-      weightChartObj=new Chart(ctxW,{
-        type:'line',
-        data:{labels:weights.map(w=>dayStr(w.logged_at).slice(5)),datasets:[{data:weights.map(w=>w.weight_kg),borderColor:'#c6ff00',backgroundColor:'rgba(198,255,0,0.15)',fill:true,tension:0.35,pointRadius:0,borderWidth:2}]},
-        options:{responsive:true,maintainAspectRatio:false,animation:false,resizeDelay:250,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#8a8a8a',maxTicksLimit:6},border:{display:false}},y:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'},border:{display:false}}}}
-      });
+      weightChartObj=new Chart(ctxW,{type:'line',data:{labels:weights.map(w=>dayStr(w.logged_at).slice(5)),datasets:[{label:'kg',data:weights.map(w=>w.weight_kg),borderColor:'#c6ff00',backgroundColor:'rgba(198,255,0,0.15)',fill:true,tension:0.35,pointRadius:0}]},options:{responsive:true,maintainAspectRatio:false,animation:false,resizeDelay:250,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#8a8a8a'}},y:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'}}}}});
     }
   }
 }
-
 function renderMonthDetail(ym){
   const el=$("#monthDetailList"), canvas=document.getElementById('monthDetailChart'); if(!el) return;
   const acts=records.activities.filter(a=>new Date(a.logged_at).toISOString().startsWith(ym)).sort((a,b)=>new Date(a.logged_at)-new Date(b.logged_at));
-  if(!acts.length){ el.innerHTML=`<div class="muted" style="padding:20px">No activities in ${ym}</div>`; if(canvas){ canvas.style.display='none'; const wrap=canvas.closest('.chart-wrap'); if(wrap) wrap.style.display='none'; } return; }
+  if(!acts.length){ el.innerHTML=`<div class="muted" style="padding:20px">No activities in ${ym}</div>`; if(canvas){ const wrap=canvas.closest('.chart-wrap'); if(wrap) wrap.style.display='none'; } return; }
   const byDay={}; acts.forEach(a=>{ const d=dayStr(a.logged_at); byDay[d]=(byDay[d]||0)+Number(a.distance_km||0); });
   if(canvas){
     let c=safeChart(canvas);
     if(c){
-      c.style.display='block';
       const wrap=c.closest('.chart-wrap'); if(wrap) wrap.style.display='block';
       if(monthDetailChartObj) { try{ monthDetailChartObj.destroy(); }catch(e){} }
-      monthDetailChartObj=new Chart(c,{
-        type:'bar',
-        data:{labels:Object.keys(byDay),datasets:[{data:Object.values(byDay),backgroundColor:'#c6ff00',borderRadius:4,maxBarThickness:24}]},
-        options:{responsive:true,maintainAspectRatio:false,animation:false,resizeDelay:250,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#8a8a8a'}},y:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'},beginAtZero:true}}}
-      });
+      monthDetailChartObj=new Chart(c,{type:'bar',data:{labels:Object.keys(byDay),datasets:[{data:Object.values(byDay),backgroundColor:'#c6ff00',borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,animation:false,resizeDelay:250,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#8a8a8a'}},y:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'},beginAtZero:true}}}});
     }
   }
-  el.innerHTML=acts.map(a=>`<div class="row"><div><strong>${esc(a.activity_name)}</strong><br><small class="muted">${new Date(a.logged_at).toLocaleDateString()} • ${a.distance_km}km</small></div><span>${a.calories_burned||0} kcal</span></div>`).join('');
+  el.innerHTML=acts.map(a=>`<div class="row" style="cursor:pointer" onclick="viewActivityReport('${a.id}')"><div><strong>${esc(a.activity_name)}</strong><br><small class="muted">${new Date(a.logged_at).toLocaleDateString()} • ${a.distance_km}km</small></div><span>${a.calories_burned||0} kcal</span></div>`).join('');
 }
+
+// NEW: FULL REPORT LIKE GPX REPORT
 function renderActivitiesTable(filter=''){
   const el=document.getElementById('activitiesTable'); if(!el) return;
   let list=[...records.activities].sort((a,b)=>new Date(b.logged_at)-new Date(a.logged_at));
   if(filter) list=list.filter(a=> new Date(a.logged_at).toISOString().startsWith(filter) || String(a.activity_name||"").toLowerCase().includes(filter.toLowerCase()));
-  el.innerHTML=list.slice(0,150).map(a=>`<div class="row" style="cursor:pointer" onclick="selectActivity('${a.id}')"><div><strong>${esc(a.activity_name)}</strong><br><small class="muted">${new Date(a.logged_at).toLocaleDateString()} • ${a.distance_km}km • ${a.duration_minutes}min • ${esc(a.source||'')}</small></div><span>${a.calories_burned||0} kcal</span></div>`).join('')||'<div class="muted" style="padding:20px;text-align:center">No activities — import FIT/GPX</div>';
-  const recent=document.getElementById('recentActivities'); if(recent) recent.innerHTML=list.slice(0,5).map(a=>`<div class="row"><div>${esc(a.activity_name)} • ${a.distance_km}km</div><small class="muted">${new Date(a.logged_at).toLocaleDateString()}</small></div>`).join('');
+  el.innerHTML=list.slice(0,150).map(a=>`<div class="row" style="cursor:pointer;padding:14px;align-items:center" onclick="viewActivityReport('${a.id}')">
+    <div style="flex:1"><strong style="font-size:15px">${esc(a.activity_name)} • ${a.distance_km}km</strong><br><small class="muted">${new Date(a.logged_at).toLocaleDateString('en-GB')} • ${a.distance_km}km • ${a.duration_minutes}min • ${esc(a.source||'')} ${a.gpx_track_id?'• 🗺 Map':''}</small></div>
+    <div style="text-align:right"><span style="font-weight:800">${a.calories_burned||0} kcal</span><br><small style="color:#c6ff00">View →</small></div>
+  </div>`).join('')||'<div class="muted" style="padding:20px;text-align:center">No activities — import FIT/GPX</div>';
+  const recent=document.getElementById('recentActivities'); if(recent) recent.innerHTML=list.slice(0,5).map(a=>`<div class="row" style="cursor:pointer" onclick="viewActivityReport('${a.id}')"><div>${esc(a.activity_name)} • ${a.distance_km}km</div><small class="muted">${new Date(a.logged_at).toLocaleDateString()}</small></div>`).join('');
 }
-window.selectActivity=(id)=>{ const act=records.activities.find(a=>a.id===id); if(act) toast(`${act.activity_name} • ${act.distance_km}km`); };
-function renderGpxDetailCharts(){}
+
+window.viewActivityReport = async (id)=>{
+  const act=records.activities.find(a=>a.id===id);
+  if(!act) return toast("Not found",true);
+  toast(`Opening ${act.activity_name}...`);
+  switchView('gpxReportView');
+  window.scrollTo(0,0);
+  // Try load from gpx_tracks if linked
+  if(act.gpx_track_id){
+    try{
+      const dbc = db || (window.supabase? window.supabase.createClient(GpxReport.SUPA_URL,GpxReport.SUPA_KEY,{auth:{persistSession:true}}) : null);
+      if(dbc){
+        const {data:track} = await dbc.from("gpx_tracks").select("*").eq("id",act.gpx_track_id).single();
+        if(track){
+          if(track.gpx_raw){
+            const file = new File([track.gpx_raw], track.file_name || `${act.activity_name}.gpx`, {type:'application/gpx+xml'});
+            await GpxReport.loadFile(file);
+            return;
+          }
+          if(track.track_data && track.track_data.length){
+            GpxReport.buildFromTrackData(track);
+            GpxReport.render();
+            setTimeout(()=>{ GpxReport.drawMap(); GpxReport.drawCharts(); GpxReport.drawTables(); },200);
+            return;
+          }
+        }
+      }
+    }catch(e){ console.log("load track failed",e.message); }
+  }
+  // Fallback activity-only report
+  GpxReport.buildFromActivity(act);
+  GpxReport.render();
+  setTimeout(()=>{ GpxReport.drawMap(); GpxReport.drawCharts(); GpxReport.drawTables(); },200);
+};
+
+window.selectActivity=(id)=>{ viewActivityReport(id); };
+
 function renderCalendar(){
   const cal=document.getElementById('calendarGrid'); if(!cal) return;
   const ml=document.getElementById('monthLabel'); if(ml) ml.textContent=currentCalendarDate.toLocaleString('en',{month:'long',year:'numeric'});
@@ -406,7 +415,7 @@ function renderCalendar(){
 }
 window.renderMonthDetailDay=(iso)=>{
   const acts=records.activities.filter(a=>dayStr(a.logged_at)===iso);
-  const el=$("#monthDetailList"); if(el) el.innerHTML=`<h4 style="margin:10px 0">${iso} • ${acts.length} activities • ${acts.reduce((s,a)=>s+Number(a.distance_km||0),0).toFixed(1)}km</h4>`+acts.map(a=>`<div class="row"><div><strong>${esc(a.activity_name)}</strong><br><small class="muted">${a.distance_km}km • ${a.duration_minutes}min</small></div><span>${a.calories_burned||0} kcal</span></div>`).join('');
+  const el=$("#monthDetailList"); if(el) el.innerHTML=`<h4 style="margin:10px 0">${iso} • ${acts.length} activities • ${acts.reduce((s,a)=>s+Number(a.distance_km||0),0).toFixed(1)}km</h4>`+acts.map(a=>`<div class="row" style="cursor:pointer" onclick="viewActivityReport('${a.id}')"><div><strong>${esc(a.activity_name)}</strong><br><small class="muted">${a.distance_km}km • ${a.duration_minutes}min</small></div><span>${a.calories_burned||0} kcal</span></div>`).join('');
 };
 window.handleQuickImport=async()=>{
   const file=document.getElementById("quickImportFile")?.files[0]; if(!file) return toast("Select file",true);
