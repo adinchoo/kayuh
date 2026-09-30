@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>Adinchoo • Dreeve v8.4.1 Stable</title>
+<title>Adinchoo • Dreeve v8.4.2 Stable</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0a0a0a">
 <meta name="background-color" content="#0a0a0a">
@@ -33,14 +33,14 @@
 <div id="iosInstallBanner" class="ios-banner hidden">
   <div class="ios-banner-content">
     <img src="assets/icons/apple-touch-icon-180.png" alt="icon" width="48" height="48">
-    <div><strong>Install on iPhone 14</strong><p>Tap ⎙ Share then <strong>Add to Home Screen</strong></p></div>
-    <button id="iosBannerClose">✕</button>
+    <div><strong>Install on iPhone 14</strong><p>Tap ⎙ Share then <strong>Add to Home Screen</strong> for fullscreen & offline</p></div>
+    <button id="iosBannerClose" type="button">✕</button>
   </div>
 </div>
 <section id="setupScreen" class="center-screen hidden" style="display:none!important"></section>
 <section id="authScreen" class="center-screen">
   <div class="auth-card wide">
-    <div class="brand"><span>⚡</span><div><h1>ADINCHOO DREEVE v8.4.1</h1><p>Stable Charts • iPhone 14 PWA</p></div></div>
+    <div class="brand"><span>⚡</span><div><h1>ADINCHOO DREEVE v8.4.2</h1><p>Stable Charts • Full Activity Report • iPhone 14 PWA</p></div></div>
     <div class="tabs"><button class="tab active" data-auth-tab="login" type="button">Sign in</button><button class="tab" data-auth-tab="signup" type="button">Create account</button></div>
     <form id="loginForm" class="stack auth-panel active">
       <label>Email<input name="email" type="email" required autocomplete="email" inputmode="email"></label>
@@ -63,12 +63,13 @@
       <label>Password (min 8)<input name="password" type="password" required minlength="8" autocomplete="new-password"></label>
       <label>Confirm<input name="confirm_password" type="password" required autocomplete="new-password"></label>
       <button class="btn primary" type="submit" id="createAccountBtn">Create account</button>
+      <small class="muted" style="text-align:center">16px inputs = no iOS zoom</small>
     </form>
   </div>
 </section>
 <div id="app" class="hidden">
 <aside class="sidebar" id="sidebar">
-  <div class="sb-brand"><span>⚡</span><strong>ADINCHOO</strong><small>v8.4.1 STABLE</small></div>
+  <div class="sb-brand"><span>⚡</span><strong>ADINCHOO</strong><small>v8.4.2 STABLE</small></div>
   <nav class="sb-nav">
     <button data-view="dashboardView" class="active"><i>◫</i> Dashboard</button>
     <button data-view="monthlyView"><i>◰</i> Monthly</button>
@@ -91,13 +92,14 @@
 </aside>
 <main class="main">
   <header class="topbar-dreeve">
-    <div><h1 id="pageTitle">Dashboard</h1><p id="pageSub" class="muted">Stable • iPhone 14 PWA: <span id="standaloneStatus">checking</span></p></div>
+    <div><h1 id="pageTitle">Dashboard</h1><p id="pageSub" class="muted">v8.4.2 Stable • PWA: <span id="standaloneStatus">checking</span></p></div>
     <div class="filters">
       <select id="yearFilter"><option>All time</option><option selected>2026</option><option>2025</option></select>
       <select id="sportFilter"><option value="all">All sports</option><option>Running</option><option>Cycling</option><option>Hiking</option><option>Workout</option></select>
       <select id="chartMetric"><option value="distance">Distance</option><option value="duration">Time</option><option value="calories">Calories</option></select>
     </div>
   </header>
+
   <section id="dashboardView" class="view active">
     <div class="kpi4">
       <div class="kpi"><label>WEIGHT</label><b id="weightValue">--</b><small id="weightSub">kg</small></div>
@@ -107,21 +109,38 @@
     </div>
     <div class="grid2-dreeve">
       <div class="card"><div class="card-head"><h3>Monthly • click bar to drill</h3><small id="chartHint" class="muted">Tap bar</small></div><div class="chart-wrap"><canvas id="monthlyChart"></canvas></div></div>
-      <div class="card"><div class="card-head"><h3>Sport distribution</h3></div><div class="chart-wrap"><canvas id="sportChart"></canvas></div></div>
+      <div class="card"><div class="card-head"><h3>Sport distribution • click to filter</h3></div><div class="chart-wrap"><canvas id="sportChart"></canvas></div></div>
     </div>
     <div class="grid2-dreeve">
       <div class="card"><div class="card-head"><h3>Weight journey</h3></div><div class="chart-wrap small"><canvas id="weightChart"></canvas></div></div>
-      <div class="card"><div class="card-head"><h3>Elevation + HR</h3></div><div class="chart-wrap small"><canvas id="eleHrChart"></canvas></div><div id="todayLogs" style="margin-top:12px"></div></div>
+      <div class="card"><div class="card-head"><h3>Elevation + HR (from GPX)</h3></div><div class="chart-wrap small"><canvas id="eleHrChart"></canvas></div><div id="todayLogs" style="margin-top:12px"></div></div>
     </div>
-    <div class="card"><div class="card-head"><h3>Recent activities</h3><button data-view="activitiesView" class="link">View all →</button></div><div id="recentActivities"></div></div>
+    <div class="card"><div class="card-head"><h3>Recent activities • tap for full report</h3><button data-view="activitiesView" class="link">View all →</button></div><div id="recentActivities"></div></div>
   </section>
-  <section id="monthlyView" class="view"><div class="card"><div class="card-head"><h3>Monthly calendar</h3><div><button id="prevMonth" class="btn small">‹</button><span id="monthLabel" style="font-weight:800;margin:0 8px"></span><button id="nextMonth" class="btn small">›</button></div></div><div id="calendarGrid" class="calendar"></div></div><div class="card"><div class="chart-wrap" style="display:none"><canvas id="monthDetailChart"></canvas></div><div id="monthDetailList"></div></div></section>
-  <section id="activitiesView" class="view"><div class="card"><div class="card-head"><h3>All activities</h3><input id="searchAct" placeholder="Filter YYYY-MM or sport"></div><div id="activitiesTable"></div></div></section>
-  <section id="gpxReportView" class="view"><div class="card dashed"><input type="file" id="gpxReportFile" accept=".gpx,.fit" hidden><div id="gpxDropZone"><div style="font-size:42px">🗺️</div><h3>Drop FIT or GPX here</h3><p class="muted">iPhone: Tap to open Files</p><button class="btn primary" onclick="document.getElementById('gpxReportFile').click()">📁 Open file</button></div><div id="quickImportStatus" class="muted" style="margin-top:10px"></div></div><div id="gpxReportContainer"></div></section>
-  <section id="foodView" class="view"><div class="card"><div class="card-head"><h3>🍽 Nutrition</h3><button data-open="mealDialog" class="btn small primary">+ Log meal</button></div><div class="nutrition-box"><div class="photo-btns"><label class="btn primary">📷 TAKE<input type="file" id="mealCameraInput" accept="image/*" capture="environment" hidden></label><label class="btn">🖼 LIBRARY<input type="file" id="foodPhotoInput" accept="image/*" hidden></label></div><div id="mealPhotoPreview" class="hidden"><img id="mealPreviewImg"></div><div id="foodPhotoStatus" class="status-box muted">Take photo</div><div id="mealSelected"></div><div id="mealCatTabs" class="cat-tabs"></div><div id="mealOptions" class="meal-options"></div></div></div></section>
-  <section id="profileView" class="view"><div class="card"><h3>Profile & PWA</h3><code id="finalUrl" class="code-block">https://...</code><small class="muted">User ID: <code id="userIdDisplay">--</code></small><div style="margin-top:12px" class="muted"><strong>Checks:</strong><br>Standalone: <span id="checkStandalone">-</span><br>iOS: <span id="checkIOS">-</span><br>SW: <span id="checkSW">-</span><br>Touch: <span id="checkTouch">-</span></div><div id="profileForm" style="margin-top:16px;display:grid;gap:10px"></div></div></section>
+
+  <section id="monthlyView" class="view">
+    <div class="card"><div class="card-head"><h3>Monthly calendar • green = workout • click day</h3><div><button id="prevMonth" class="btn small">‹</button><span id="monthLabel" style="font-weight:800;margin:0 8px"></span><button id="nextMonth" class="btn small">›</button></div></div><div id="calendarGrid" class="calendar"></div></div>
+    <div class="card"><div class="chart-wrap" style="display:none"><canvas id="monthDetailChart"></canvas></div><div id="monthDetailList"></div></div>
+  </section>
+
+  <section id="activitiesView" class="view">
+    <div class="card">
+      <div class="card-head"><h3>All activities • tap for full GPX report</h3><input id="searchAct" placeholder="Filter YYYY-MM or sport"></div>
+      <div id="activitiesTable"></div>
+    </div>
+  </section>
+
+  <section id="gpxReportView" class="view">
+    <div class="card dashed"><input type="file" id="gpxReportFile" accept=".gpx,.fit" hidden><div id="gpxDropZone"><div style="font-size:42px">🗺️</div><h3>Drop FIT or GPX here</h3><p class="muted">iPhone: Tap to open Files app • Or tap any Activity for full report</p><button class="btn primary" onclick="document.getElementById('gpxReportFile').click()">📁 Open file</button></div><div id="quickImportStatus" class="muted" style="margin-top:10px"></div></div>
+    <div id="gpxReportContainer"></div>
+  </section>
+
+  <section id="foodView" class="view"><div class="card"><div class="card-head"><h3>🍽 Nutrition • AI Photo</h3><button data-open="mealDialog" class="btn small primary">+ Log meal</button></div><div class="nutrition-box"><div class="photo-btns"><label class="btn primary">📷 TAKE<input type="file" id="mealCameraInput" accept="image/*" capture="environment" hidden></label><label class="btn">🖼 LIBRARY<input type="file" id="foodPhotoInput" accept="image/*" hidden></label></div><div id="mealPhotoPreview" class="hidden"><img id="mealPreviewImg"></div><div id="foodPhotoStatus" class="status-box muted">Take photo - iOS will ask for camera permission once</div><div id="mealSelected"></div><div id="mealCatTabs" class="cat-tabs"></div><div id="mealOptions" class="meal-options"></div></div></div></section>
+
+  <section id="profileView" class="view"><div class="card"><h3>Profile & iPhone PWA</h3><code id="finalUrl" class="code-block">https://dxgzluurwsoytqlasuup.supabase.co/functions/v1/health-auto-export?user_id=...</code><small class="muted">User ID: <code id="userIdDisplay">--</code></small><div style="margin-top:12px" class="muted"><strong>iPhone 14 Checks:</strong><br>Standalone: <span id="checkStandalone">-</span><br>iOS: <span id="checkIOS">-</span><br>SW: <span id="checkSW">-</span><br>Touch: <span id="checkTouch">-</span></div><div id="profileForm" style="margin-top:16px;display:grid;gap:10px"></div><div style="margin-top:16px"><button id="testPuterButton" class="btn">🤖 Test Puter AI</button><pre id="puterTestOutput" class="code-block hidden"></pre></div></div></section>
 </main>
 </div>
+
 <nav class="bottom-tabs" id="bottomTabs">
   <button data-view="dashboardView" class="active"><span>◫</span><small>Dash</small></button>
   <button data-view="monthlyView"><span>◰</span><small>Month</small></button>
@@ -129,18 +148,20 @@
   <button data-view="gpxReportView"><span>🗺</span><small>GPX</small></button>
   <button data-view="foodView"><span>🍽</span><small>Food</small></button>
 </nav>
+
 <dialog id="mealDialog"><form id="mealForm" method="dialog" class="dialog-form"><header><h3>Log Meal</h3><button data-close type="button">×</button></header><div id="mealSelectedDialog"></div><button class="btn primary" type="submit" id="logMealBtn">Log Meal</button></form></dialog>
 <dialog id="bodyDialog"><form id="bodyForm" method="dialog" class="dialog-form"><h3>Log Weight</h3><input name="weight_kg" type="number" step="0.1" required placeholder="kg" inputmode="decimal"><button class="btn primary">Save</button><button data-close type="button" class="btn">Close</button></form></dialog>
 <dialog id="importDialog"><form method="dialog" onsubmit="return false" class="dialog-form"><h3>Import FIT / GPX</h3><input type="file" id="quickImportFile" accept=".fit,.gpx"><select id="quickImportType"><option value="fit">FIT</option><option value="gpx">GPX</option></select><button class="btn primary" onclick="handleQuickImport()">Import</button><div id="fitStatus" class="muted"></div><button data-close type="button" class="btn">Close</button></form></dialog>
+
 <script>
 (function(){
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
   document.addEventListener('DOMContentLoaded', ()=>{
-    const el = document.getElementById('checkIOS'); if(el) el.textContent = isIOS ? 'Yes' : 'No';
-    const el2 = document.getElementById('checkStandalone'); if(el2) el2.textContent = isStandalone ? 'Yes ✓' : 'No';
+    const el = document.getElementById('checkIOS'); if(el) el.textContent = isIOS ? 'Yes - iPhone/iPad' : 'No';
+    const el2 = document.getElementById('checkStandalone'); if(el2) el2.textContent = isStandalone ? 'Yes - Installed ✓' : 'No - Browser';
     const el3 = document.getElementById('checkTouch'); if(el3) el3.textContent = ('ontouchstart' in window) ? 'Yes' : 'No';
-    const st = document.getElementById('standaloneStatus'); if(st) st.textContent = isStandalone ? 'PWA Installed ✓' : 'Browser';
+    const st = document.getElementById('standaloneStatus'); if(st) st.textContent = isStandalone ? 'PWA Installed ✓' : 'Browser - Install for fullscreen';
     const dismissed = localStorage.getItem('iosBannerDismissed');
     const banner = document.getElementById('iosInstallBanner');
     if(isIOS && !isStandalone && !dismissed && banner){ setTimeout(()=> banner.classList.remove('hidden'), 1500); }
