@@ -1,3 +1,4 @@
+
 const FOOD_DB = {
   "Main": [
     {name:"Nasi Kerabu", kcal:420, protein:18, carbs:55, fat:14, variants:true, sizes:{S:{kcal:300,protein:13},M:{kcal:420,protein:18},L:{kcal:580,protein:24}}},

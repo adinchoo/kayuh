@@ -1,10 +1,28 @@
+
 "use strict";
+// ADINCHOO DREEVE v8.4 - iPhone 14 PWA Optimized
 const SUPABASE_URL = "https://dxgzluurwsoytqlasuup.supabase.co";
 const SUPABASE_KEY = "sb_publishable_RTeGJ9m_CL26fUMXwEGLJQ_JfGiLyit";
 let db=null,user=null,profile=null;
 let records={meals:[],activities:[],body:[],workoutSessions:[],workoutExercises:[],photos:[],water:[],sleep:[],steps:[],hr:[]};
 let selectedFoods=[], currentCategory="Main", currentCalendarDate=new Date();
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
+
+// iPhone 14 PWA helpers
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+const isIPhone14 = window.screen.width===390 && window.screen.height===844 || window.screen.width===844 && window.screen.height===390;
+
+function updateStandaloneChecks(){
+  const el = $("#checkSW");
+  if(el) el.textContent = ('serviceWorker' in navigator) ? 'Supported' : 'No';
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.getRegistration().then(reg=>{
+      if(el) el.textContent = reg ? `Registered ${reg.active?'active':''}` : 'Not registered';
+    });
+  }
+}
+
 const show=id=>{
   ["setupScreen","authScreen","app"].forEach(x=>{
     const el=$("#"+x);
@@ -12,18 +30,55 @@ const show=id=>{
     el.classList.toggle("hidden", x!==id);
   });
 };
-const toast=(m,bad=false)=>{const t=$("#toast"); if(!t) return; t.textContent=m; t.style.background=bad?"#ff7a86":"#c6ff00"; t.style.color=bad?"#fff":"#000"; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),3000)};
+const toast=(m,bad=false)=>{const t=$("#toast"); if(!t) return; t.textContent=m; t.style.background=bad?"#ff7a86":"#c6ff00"; t.style.color=bad?"#fff":"#000"; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),3500)};
 const esc=v=>{const d=document.createElement("div");d.textContent=String(v??"");return d.innerHTML};
-const config=()=>({url:SUPABASE_URL,key:SUPABASE_KEY});
 const dayStr=d=>{const dt=new Date(d);return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}-${String(dt.getDate()).padStart(2,"0")}`};
 const todayStr=()=>dayStr(new Date());
 const isSameDay=(a,b)=>dayStr(a)===dayStr(b);
 const isToday=d=>isSameDay(d,new Date());
 
-function client(){ if(!window.supabase) throw new Error("Supabase SDK not loaded"); db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}}) }
+function client(){ if(!window.supabase) throw new Error("Supabase SDK not loaded"); db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true, flowType:'pkce'}}) }
+
+// iPhone 14 PWA: register SW with update handling
+async function registerSW(){
+  if(!('serviceWorker' in navigator)) { updateStandaloneChecks(); return; }
+  try{
+    const reg = await navigator.serviceWorker.register('./sw.js', {scope:'./', updateViaCache:'none'});
+    console.log('SW registered', reg.scope, 'iPhone14:', isIPhone14);
+    updateStandaloneChecks();
+    
+    // Check for update on app focus (iOS doesn't auto-update often)
+    reg.addEventListener('updatefound', ()=>{
+      const nw = reg.installing;
+      nw.addEventListener('statechange', ()=>{
+        if(nw.state==='installed' && navigator.serviceWorker.controller){
+          toast('Update available - close app to update');
+        }
+      });
+    });
+    
+    // iOS: when returning from background, check for SW update
+    document.addEventListener('visibilitychange', ()=>{
+      if(document.visibilityState==='visible'){
+        reg.update().catch(()=>{});
+      }
+    });
+    
+    // Handle controller change (new SW activated)
+    navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+      // Don't auto-reload on iOS, it can cause loop
+      console.log('SW controller changed');
+    });
+  }catch(e){
+    console.warn('SW reg failed', e);
+    if($("#checkSW")) $("#checkSW").textContent = 'Failed: '+e.message;
+  }
+}
 
 async function boot(){
   try{
+    // Register SW first for iPhone offline support
+    registerSW();
     client();
     const {data:{session}} = await db.auth.getSession();
     if(session){ user=session.user; await enterApp(); }
@@ -32,10 +87,26 @@ async function boot(){
       if(ev==="SIGNED_IN"&&s?.user){ user=s.user; await enterApp(); }
       if(ev==="SIGNED_OUT"){ show("authScreen"); if(window.setAuthTab) window.setAuthTab("login"); }
     });
+    
+    // iOS orientation change fix for charts and map
+    window.addEventListener('orientationchange', ()=>{
+      setTimeout(()=>{
+        if(window.GpxReport?.map){ window.GpxReport.map.invalidateSize(); }
+        renderDreeveCharts();
+        if(window.GpxReport?.data) GpxReport.drawCharts();
+      }, 500);
+    });
+    
+    // Fix iOS 100vh issue - already handled in index.html but double ensure
+    if(isIOS && window.visualViewport){
+      window.visualViewport.addEventListener('resize', ()=>{
+        document.documentElement.style.setProperty('--vh', `${window.visualViewport.height * 0.01}px`);
+      });
+    }
+    
   }catch(e){ console.error(e); show("authScreen"); toast(e.message,true) }
 }
 
-// FIXED AUTH - uses setAuthTab from index.html, no inline style.display
 function initAuth(){
   const loginForm=$("#loginForm");
   const signupForm=$("#signupForm");
@@ -51,7 +122,7 @@ function initAuth(){
     const {data,error}=await db.auth.signInWithPassword({email:String(f.get("email")||"").trim(),password:String(f.get("password")||"")});
     if(btn){ btn.disabled=false; btn.textContent=oldText; }
     if(error) return toast(error.message,true);
-    user=data.user; await enterApp(); toast("Welcome back");
+    user=data.user; await enterApp(); toast("Welcome back" + (isStandalone?" - PWA":""));
   });
 
   signupForm?.addEventListener("submit", async e=>{
@@ -81,19 +152,26 @@ function initAuth(){
     if(btn){ btn.disabled=false; btn.textContent=oldText; }
     if(error) return toast(error.message,true);
     if(data.session){ user=data.user; await enterApp(); toast("Account created"); }
-    else { toast("Account created — if email confirmation is ON, check email. Or disable it in Auth settings"); if(window.setAuthTab) window.setAuthTab("login"); }
+    else { toast("Account created — check email or disable confirm in Supabase"); if(window.setAuthTab) window.setAuthTab("login"); }
   });
 
   $("#forgotButton")?.addEventListener('click',async()=>{ const email=prompt("Email for reset:"); if(!email) return; const {error}=await db.auth.resetPasswordForEmail(email); toast(error?error.message:"Reset sent — check email",!!error); });
   $("#logoutButton")?.addEventListener('click',async()=>{ await db.auth.signOut(); user=null; profile=null; show("authScreen"); if(window.setAuthTab) window.setAuthTab("login"); });
-  $("#syncButton")?.addEventListener('click',async()=>{ await loadRecords(); renderAll(); toast("Synced") });
+  $("#syncButton")?.addEventListener('click',async()=>{ await loadRecords(); renderAll(); toast("Synced" + (isIOS?" - iOS":"")) });
 }
 
 async function enterApp(){
   show("app");
-  const ps=$("#pageSub"); if(ps) ps.textContent=new Date().getFullYear()+" • Click charts to drill details • "+SUPABASE_URL;
+  const ps=$("#pageSub"); if(ps) ps.textContent=`${new Date().getFullYear()} • iPhone 14 PWA ${isStandalone?'Installed ✓':'Browser'} • ${SUPABASE_URL.split('.')[0].split('//')[1]}`;
   await Promise.all([loadProfile(), loadRecords()]);
   initUI(); renderAll(); updateAutoSyncUrl();
+  
+  // Handle ?view= param from shortcuts
+  const params = new URLSearchParams(location.search);
+  const viewParam = params.get('view');
+  if(viewParam && document.getElementById(viewParam)){
+    setTimeout(()=>switchView(viewParam), 300);
+  }
 }
 function updateAutoSyncUrl(){
   const el=$("#finalUrl"); if(!el||!user) return;
@@ -165,7 +243,13 @@ function initUI(){
   if(gpxFile){
     gpxFile.onchange=e=>{ const f=e.target.files[0]; if(f){ GpxReport.loadFile(f).then(()=>{ switchView('gpxReportView'); toast('Loaded '+f.name); renderGpxDetailCharts(); }).catch(err=>toast(err.message,true)); } };
     const dz=$("#gpxDropZone");
-    if(dz){ dz.ondragover=e=>{ e.preventDefault(); dz.style.borderColor='#c6ff00'; }; dz.ondragleave=()=>dz.style.borderColor=''; dz.ondrop=e=>{ e.preventDefault(); const f=e.dataTransfer.files[0]; if(f){ GpxReport.loadFile(f).then(()=>{ switchView('gpxReportView'); renderGpxDetailCharts(); }); } }; }
+    if(dz){ 
+      dz.ondragover=e=>{ e.preventDefault(); dz.style.borderColor='#c6ff00'; }; 
+      dz.ondragleave=()=>dz.style.borderColor=''; 
+      dz.ondrop=e=>{ e.preventDefault(); const f=e.dataTransfer.files[0]; if(f){ GpxReport.loadFile(f).then(()=>{ switchView('gpxReportView'); renderGpxDetailCharts(); }); } }; 
+      // iOS doesn't support drag, tap to open
+      dz.onclick=()=>{ if(isIOS) $("#gpxReportFile")?.click(); };
+    }
   }
   buildProfileForm();
 }
@@ -230,7 +314,7 @@ async function saveMeal(e){ e.preventDefault(); if(!selectedFoods.length) return
   selectedFoods=[]; renderSelected(); $("#mealDialog")?.close(); await loadRecords(); renderAll(); toast(`Logged ${totalK} kcal`);
 }
 async function saveBody(e){ e.preventDefault(); const fd=new FormData(e.currentTarget); const {error}=await db.from('body_logs').insert({user_id:user.id,weight_kg:parseFloat(fd.get('weight_kg')),logged_at:new Date().toISOString()}); if(error) return toast(error.message,true); e.currentTarget.closest('dialog')?.close(); await loadRecords(); renderAll(); }
-function buildProfileForm(){ const f=$("#profileForm"); if(!f||!profile) return; f.innerHTML=`<label>Full name<input name="full_name" value="${esc(profile.full_name||'')}" ></label><label>Target kg<input name="target_weight_kg" type="number" step="0.1" value="${profile.target_weight_kg||68}"></label><button class="btn primary" type="submit">Save</button>`; f.onsubmit=async e=>{ e.preventDefault(); const fd=new FormData(f); const {error}=await db.from("profiles").update({full_name:String(fd.get("full_name")||""),target_weight_kg:+fd.get("target_weight_kg")}).eq("id",user.id); if(error) return toast(error.message,true); toast("Saved"); }; }
+function buildProfileForm(){ const f=$("#profileForm"); if(!f||!profile) return; f.innerHTML=`<label>Full name<input name="full_name" value="${esc(profile.full_name||'')}" ></label><label>Target kg<input name="target_weight_kg" type="number" step="0.1" value="${profile.target_weight_kg||68}" inputmode="decimal"></label><button class="btn primary" type="submit">Save</button>`; f.onsubmit=async e=>{ e.preventDefault(); const fd=new FormData(f); const {error}=await db.from("profiles").update({full_name:String(fd.get("full_name")||""),target_weight_kg:+fd.get("target_weight_kg")}).eq("id",user.id); if(error) return toast(error.message,true); toast("Saved"); }; }
 
 let monthlyChartObj=null, sportChartObj=null, weightChartObj=null, eleHrChartObj=null, monthDetailChartObj=null;
 function renderDreeveCharts(){
@@ -251,17 +335,17 @@ function renderDreeveCharts(){
   const ctx=document.getElementById('monthlyChart');
   if(ctx){
     if(monthlyChartObj) monthlyChartObj.destroy();
-    monthlyChartObj=new Chart(ctx,{type:'bar',data:{labels,datasets:[{data:vals,backgroundColor:'#c6ff00',borderRadius:8}]},options:{onClick:(evt,els)=>{ if(els.length){ const m=labels[els[0].index]; const ch=$("#chartHint"); if(ch) ch.textContent='Drill: '+m; renderMonthDetail(m); switchView('monthlyView'); }},plugins:{legend:{display:false}},scales:{x:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'}},y:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'}}}}});
+    monthlyChartObj=new Chart(ctx,{type:'bar',data:{labels,datasets:[{data:vals,backgroundColor:'#c6ff00',borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,onClick:(e,els)=>{ if(els.length){ const m=labels[els[0].index]; const ch=$("#chartHint"); if(ch) ch.textContent='Drill: '+m; renderMonthDetail(m); switchView('monthlyView'); }},plugins:{legend:{display:false}},scales:{x:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'}},y:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'}}}}});
   }
   const bySport={}; allActs.forEach(a=>{ const s=a.activity_name||'Workout'; bySport[s]=(bySport[s]||0)+(metric==='duration'?Number(a.duration_minutes||0):Number(a.distance_km||0)); });
   const ctx2=document.getElementById('sportChart');
   if(ctx2&&Object.keys(bySport).length){
     if(sportChartObj) sportChartObj.destroy();
-    sportChartObj=new Chart(ctx2,{type:'doughnut',data:{labels:Object.keys(bySport),datasets:[{data:Object.values(bySport),backgroundColor:['#c6ff00','#58a9ff','#5de8b6','#ff7a86','#ffcb47','#a78bfa']}]},options:{onClick:(evt,els)=>{ if(els.length){ const sport=Object.keys(bySport)[els[0].index]; const si=$("#searchAct"); if(si) si.value=sport; renderActivitiesTable(sport); switchView('activitiesView'); }},plugins:{legend:{position:'bottom',labels:{color:'#8a8a8a',boxWidth:12}}}}});
+    sportChartObj=new Chart(ctx2,{type:'doughnut',data:{labels:Object.keys(bySport),datasets:[{data:Object.values(bySport),backgroundColor:['#c6ff00','#58a9ff','#ff7a86','#5de8b6','#ffcc66','#a88bff']}]},options:{responsive:true,maintainAspectRatio:false,onClick:(e,els)=>{ if(els.length){ const sport=Object.keys(bySport)[els[0].index]; const si=$("#searchAct"); if(si) si.value=sport; renderActivitiesTable(sport); switchView('activitiesView'); }},plugins:{legend:{position:'bottom',labels:{color:'#8a8a8a',boxWidth:12}}}}});
   }
   const weights=[...records.body].sort((a,b)=>new Date(a.logged_at)-new Date(b.logged_at)).slice(-30);
   const ctxW=document.getElementById('weightChart');
-  if(ctxW){ if(weightChartObj) weightChartObj.destroy(); if(weights.length){ weightChartObj=new Chart(ctxW,{type:'line',data:{labels:weights.map(w=>dayStr(w.logged_at).slice(5)),datasets:[{data:weights.map(w=>w.weight_kg),borderColor:'#c6ff00',backgroundColor:'rgba(198,255,0,.15)',tension:.3,fill:true}]},options:{plugins:{legend:{display:false}},scales:{x:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'}},y:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'}}}}}); }
+  if(ctxW){ if(weightChartObj) weightChartObj.destroy(); if(weights.length){ weightChartObj=new Chart(ctxW,{type:'line',data:{labels:weights.map(w=>dayStr(w.logged_at).slice(5)),datasets:[{data:weights.map(w=>w.weight_kg),borderColor:'#c6ff00',backgroundColor:'rgba(198,255,0,0.15)',fill:true,tension:0.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'}},y:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'}}}}}); }
   }
 }
 function renderMonthDetail(ym){
@@ -269,7 +353,7 @@ function renderMonthDetail(ym){
   const acts=records.activities.filter(a=>new Date(a.logged_at).toISOString().startsWith(ym)).sort((a,b)=>new Date(a.logged_at)-new Date(b.logged_at));
   if(!acts.length){ el.innerHTML=`<div class="muted" style="padding:20px">No activities in ${ym}</div>`; if(canvas) canvas.style.display='none'; return; }
   const byDay={}; acts.forEach(a=>{ const d=dayStr(a.logged_at); byDay[d]=(byDay[d]||0)+Number(a.distance_km||0); });
-  if(canvas){ canvas.style.display='block'; if(monthDetailChartObj) monthDetailChartObj.destroy(); monthDetailChartObj=new Chart(canvas,{type:'bar',data:{labels:Object.keys(byDay),datasets:[{data:Object.values(byDay),backgroundColor:'#c6ff00',borderRadius:6}]},options:{plugins:{legend:{display:false}},scales:{x:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'}},y:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'}}}}}); }
+  if(canvas){ canvas.style.display='block'; if(monthDetailChartObj) monthDetailChartObj.destroy(); monthDetailChartObj=new Chart(canvas,{type:'bar',data:{labels:Object.keys(byDay),datasets:[{data:Object.values(byDay),backgroundColor:'#c6ff00',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#8a8a8a'}},y:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'}}}}}); }
   el.innerHTML=acts.map(a=>`<div class="row"><div><strong>${esc(a.activity_name)}</strong><br><small class="muted">${new Date(a.logged_at).toLocaleDateString()} • ${a.distance_km}km</small></div><span>${a.calories_burned||0} kcal</span></div>`).join('');
 }
 function renderActivitiesTable(filter=''){

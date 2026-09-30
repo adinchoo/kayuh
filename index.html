@@ -2,30 +2,70 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Adinchoo • Dreeve v8.3.1</title>
+<!-- iPhone 14 PWA viewport - viewport-fit=cover is critical for notch -->
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Adinchoo • Dreeve v8.4 iPhone</title>
+
+<!-- PWA primary -->
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#c6ff00">
+<meta name="theme-color" content="#0a0a0a">
+<meta name="background-color" content="#0a0a0a">
+<meta name="format-detection" content="telephone=no">
+
+<!-- iOS PWA meta - THIS is what makes iPhone 14 work -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Adinchoo Dreeve">
+<meta name="apple-touch-fullscreen" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+
+<!-- iOS Icons - must be PNG, no transparency, iOS will add rounding -->
+<link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon-180.png">
+<link rel="apple-touch-icon" sizes="167x167" href="assets/icons/apple-touch-icon-167.png">
+<link rel="apple-touch-icon" sizes="152x152" href="assets/icons/apple-touch-icon-152.png">
+<link rel="apple-touch-icon" sizes="120x120" href="assets/icons/apple-touch-icon-120.png">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
+
+<!-- iPhone 14 Splash Screens - prevents white flash -->
+<link rel="apple-touch-startup-image" media="screen and (device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="assets/icons/apple-splash-1170x2532.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="assets/icons/apple-splash-1170x2532.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="assets/icons/apple-splash-1170x2532.png">
+
+<!-- CDNs -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://js.puter.com/v2/"></script>
+<script src="https://js.puter.com/v2/" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <link rel="stylesheet" href="styles.css">
-<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 </head>
 <body class="dreeve">
+<!-- Safe area top spacer for black-translucent status bar -->
+<div class="ios-statusbar-spacer"></div>
 <div id="toast" class="toast"></div>
+
+<!-- iOS Install Banner - iPhone has NO auto prompt, must teach user -->
+<div id="iosInstallBanner" class="ios-banner hidden">
+  <div class="ios-banner-content">
+    <img src="assets/icons/apple-touch-icon-180.png" alt="icon" width="48" height="48">
+    <div>
+      <strong>Install on iPhone 14</strong>
+      <p>Tap <span style="font-size:18px">⎙</span> Share then <strong>Add to Home Screen</strong> for full screen & offline.</p>
+    </div>
+    <button id="iosBannerClose" aria-label="close">✕</button>
+  </div>
+</div>
 
 <section id="setupScreen" class="center-screen hidden" style="display:none!important"></section>
 
 <section id="authScreen" class="center-screen">
   <div class="auth-card wide">
-    <div class="brand"><span>⚡</span><div><h1>ADINCHOO DREEVE v8.3.1</h1><p>dxgzluurwsoytqlasuup • Food AI • FIT/GPX drill charts</p></div></div>
+    <div class="brand"><span>⚡</span><div><h1>ADINCHOO DREEVE v8.4</h1><p>iPhone 14 PWA • Fullscreen • Offline</p></div></div>
     <div class="tabs"><button class="tab active" data-auth-tab="login" type="button">Sign in</button><button class="tab" data-auth-tab="signup" type="button">Create account</button></div>
     
     <form id="loginForm" class="stack auth-panel active">
-      <label>Email<input name="email" type="email" required autocomplete="email"></label>
+      <label>Email<input name="email" type="email" required autocomplete="email" inputmode="email"></label>
       <label>Password<input name="password" type="password" required autocomplete="current-password"></label>
       <button class="btn primary" type="submit">Sign in</button>
       <button id="forgotButton" class="link" type="button">Forgot password?</button>
@@ -42,18 +82,18 @@
         <label>Calories<input name="target_calories" type="number" value="2200"></label>
         <label>Protein g<input name="target_protein_g" type="number" value="180"></label>
       </div>
-      <label>Email<input name="email" type="email" required autocomplete="email"></label>
+      <label>Email<input name="email" type="email" required autocomplete="email" inputmode="email"></label>
       <label>Password (min 8)<input name="password" type="password" required minlength="8" autocomplete="new-password"></label>
       <label>Confirm<input name="confirm_password" type="password" required autocomplete="new-password"></label>
       <button class="btn primary" type="submit" id="createAccountBtn">Create account</button>
-      <small class="muted" style="text-align:center">Password min 8 chars • If error "confirm email" → disable it in Supabase Auth settings</small>
+      <small class="muted" style="text-align:center">iPhone tip: Use 16px inputs to prevent auto-zoom - fixed in this build</small>
     </form>
   </div>
 </section>
 
 <div id="app" class="hidden">
-<aside class="sidebar">
-  <div class="sb-brand"><span>⚡</span><strong>ADINCHOO</strong><small>DREEVE v8.3.1</small></div>
+<aside class="sidebar" id="sidebar">
+  <div class="sb-brand"><span>⚡</span><strong>ADINCHOO</strong><small>DREEVE v8.4 • iP14</small></div>
   <nav class="sb-nav">
     <button data-view="dashboardView" class="active"><i>◫</i> Dashboard</button>
     <button data-view="monthlyView"><i>◰</i> Monthly</button>
@@ -76,7 +116,7 @@
 </aside>
 <main class="main">
   <header class="topbar-dreeve">
-    <div><h1 id="pageTitle">Dashboard</h1><p id="pageSub" class="muted">Hardcoded • dxgzluurwsoytqlasuup • Click charts to drill</p></div>
+    <div><h1 id="pageTitle">Dashboard</h1><p id="pageSub" class="muted">iPhone 14 PWA • Standalone: <span id="standaloneStatus">checking</span> • Offline ready</p></div>
     <div class="filters">
       <select id="yearFilter"><option>All time</option><option selected>2026</option><option>2025</option></select>
       <select id="sportFilter"><option value="all">All sports</option><option>Running</option><option>Cycling</option><option>Hiking</option><option>Workout</option></select>
@@ -102,28 +142,66 @@
   </section>
   <section id="monthlyView" class="view"><div class="card"><div class="card-head"><h3>Monthly calendar • green = workout • click day</h3><div><button id="prevMonth" class="btn small">‹</button><span id="monthLabel" style="font-weight:800;margin:0 8px"></span><button id="nextMonth" class="btn small">›</button></div></div><div id="calendarGrid" class="calendar"></div></div><div class="card"><canvas id="monthDetailChart" height="220" style="display:none"></canvas><div id="monthDetailList"></div></div></section>
   <section id="activitiesView" class="view"><div class="card"><div class="card-head"><h3>All activities</h3><input id="searchAct" placeholder="Filter YYYY-MM or sport"></div><div id="activitiesTable"></div></div></section>
-  <section id="gpxReportView" class="view"><div class="card dashed"><input type="file" id="gpxReportFile" accept=".gpx,.fit" hidden><div id="gpxDropZone"><div style="font-size:42px">🗺️</div><h3>Drop FIT or GPX here</h3><p class="muted">Full parser + map + drill charts</p><button class="btn primary" onclick="document.getElementById('gpxReportFile').click()">📁 Open file</button></div><div id="quickImportStatus" class="muted" style="margin-top:10px"></div></div><div id="gpxReportContainer"></div></section>
-  <section id="foodView" class="view"><div class="card"><div class="card-head"><h3>🍽 Nutrition • AI Photo primary</h3><button data-open="mealDialog" class="btn small primary">+ Log meal</button></div><div class="nutrition-box"><div class="photo-btns"><label class="btn primary">📷 TAKE<input type="file" id="mealCameraInput" accept="image/*" capture="environment" hidden></label><label class="btn">🖼 LIBRARY<input type="file" id="foodPhotoInput" accept="image/*" hidden></label></div><div id="mealPhotoPreview" class="hidden"><img id="mealPreviewImg"></div><div id="foodPhotoStatus" class="status-box muted">Take photo of nasi + ayam — AI will estimate</div><div id="mealSelected"></div><div id="mealCatTabs" class="cat-tabs"></div><div id="mealOptions" class="meal-options"></div></div></div></section>
-  <section id="profileView" class="view"><div class="card"><h3>Profile & Auto Sync</h3><code id="finalUrl" class="code-block">https://dxgzluurwsoytqlasuup.supabase.co/functions/v1/health-auto-export?user_id=...</code><small class="muted">User ID: <code id="userIdDisplay">--</code></small><div id="profileForm" style="margin-top:16px;display:grid;gap:10px"></div><div style="margin-top:16px"><button id="testPuterButton" class="btn">🤖 Test Puter AI</button><pre id="puterTestOutput" class="code-block hidden"></pre></div></div></section>
+  <section id="gpxReportView" class="view"><div class="card dashed"><input type="file" id="gpxReportFile" accept=".gpx,.fit" hidden><div id="gpxDropZone"><div style="font-size:42px">🗺️</div><h3>Drop FIT or GPX here</h3><p class="muted">iPhone: Tap to open Files app</p><button class="btn primary" onclick="document.getElementById('gpxReportFile').click()">📁 Open file</button></div><div id="quickImportStatus" class="muted" style="margin-top:10px"></div></div><div id="gpxReportContainer"></div></section>
+  <section id="foodView" class="view"><div class="card"><div class="card-head"><h3>🍽 Nutrition • AI Photo</h3><button data-open="mealDialog" class="btn small primary">+ Log meal</button></div><div class="nutrition-box"><div class="photo-btns"><label class="btn primary">📷 TAKE<input type="file" id="mealCameraInput" accept="image/*" capture="environment" hidden></label><label class="btn">🖼 LIBRARY<input type="file" id="foodPhotoInput" accept="image/*" hidden></label></div><div id="mealPhotoPreview" class="hidden"><img id="mealPreviewImg"></div><div id="foodPhotoStatus" class="status-box muted">Take photo - iOS will ask for camera permission once</div><div id="mealSelected"></div><div id="mealCatTabs" class="cat-tabs"></div><div id="mealOptions" class="meal-options"></div></div></div></section>
+  <section id="profileView" class="view"><div class="card"><h3>Profile & iPhone PWA</h3><code id="finalUrl" class="code-block">https://dxgzluurwsoytqlasuup.supabase.co/functions/v1/health-auto-export?user_id=...</code><small class="muted">User ID: <code id="userIdDisplay">--</code></small><div style="margin-top:12px" class="muted"><strong>iPhone 14 Checks:</strong><br>Standalone: <span id="checkStandalone">-</span><br>iOS: <span id="checkIOS">-</span><br>SW: <span id="checkSW">-</span><br>Touch: <span id="checkTouch">-</span></div><div id="profileForm" style="margin-top:16px;display:grid;gap:10px"></div><div style="margin-top:16px"><button id="testPuterButton" class="btn">🤖 Test Puter AI</button><pre id="puterTestOutput" class="code-block hidden"></pre></div></div></section>
 </main>
 </div>
 
+<!-- Bottom Tab Bar - iPhone 14 thumb zone -->
+<nav class="bottom-tabs" id="bottomTabs">
+  <button data-view="dashboardView" class="active"><span>◫</span><small>Dash</small></button>
+  <button data-view="monthlyView"><span>◰</span><small>Month</small></button>
+  <button data-view="activitiesView"><span>☰</span><small>Acts</small></button>
+  <button data-view="gpxReportView"><span>🗺</span><small>GPX</small></button>
+  <button data-view="foodView"><span>🍽</span><small>Food</small></button>
+</nav>
+
 <dialog id="mealDialog"><form id="mealForm" method="dialog" class="dialog-form"><header><h3>Log Meal</h3><button data-close type="button">×</button></header><div id="mealSelectedDialog"></div><button class="btn primary" type="submit" id="logMealBtn">Log Meal</button></form></dialog>
-<dialog id="bodyDialog"><form id="bodyForm" method="dialog" class="dialog-form"><h3>Log Weight</h3><input name="weight_kg" type="number" step="0.1" required placeholder="kg"><button class="btn primary">Save</button><button data-close type="button" class="btn">Close</button></form></dialog>
+<dialog id="bodyDialog"><form id="bodyForm" method="dialog" class="dialog-form"><h3>Log Weight</h3><input name="weight_kg" type="number" step="0.1" required placeholder="kg" inputmode="decimal"><button class="btn primary">Save</button><button data-close type="button" class="btn">Close</button></form></dialog>
 <dialog id="importDialog"><form method="dialog" onsubmit="return false" class="dialog-form"><h3>Import FIT / GPX</h3><input type="file" id="quickImportFile" accept=".fit,.gpx"><select id="quickImportType"><option value="fit">FIT</option><option value="gpx">GPX</option></select><button class="btn primary" onclick="handleQuickImport()">Import</button><div id="fitStatus" class="muted"></div><button data-close type="button" class="btn">Close</button></form></dialog>
 
 <script>
-// IMMEDIATE TAB FIX - runs before app.js so button always works
+// iOS PWA DETECTION + INSTALL BANNER - MUST run before app.js
 (function(){
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+  
+  document.addEventListener('DOMContentLoaded', ()=>{
+    const el = document.getElementById('checkIOS'); if(el) el.textContent = isIOS ? 'Yes - iPhone/iPad' : 'No';
+    const el2 = document.getElementById('checkStandalone'); if(el2) el2.textContent = isStandalone ? 'Yes - Installed ✓' : 'No - Browser';
+    const el3 = document.getElementById('checkTouch'); if(el3) el3.textContent = ('ontouchstart' in window) ? 'Yes' : 'No';
+    const st = document.getElementById('standaloneStatus'); if(st) st.textContent = isStandalone ? 'PWA Installed ✓' : 'Browser - Install for fullscreen';
+    
+    // Show iOS install banner if iOS and not standalone and not dismissed
+    const dismissed = localStorage.getItem('iosBannerDismissed');
+    const banner = document.getElementById('iosInstallBanner');
+    if(isIOS && !isStandalone && !dismissed && banner){
+      setTimeout(()=> banner.classList.remove('hidden'), 1500);
+    }
+    document.getElementById('iosBannerClose')?.addEventListener('click', ()=>{
+      banner?.classList.add('hidden');
+      localStorage.setItem('iosBannerDismissed','1');
+    });
+    
+    // Fix 100vh on iOS - use visualViewport
+    const setVH = () => {
+      const vh = window.visualViewport ? window.visualViewport.height * 0.01 : window.innerHeight * 0.01;
+      document.documentElement.style.setProperty('--vh', `${vh}px`);
+      document.documentElement.style.setProperty('--safe-top', 'env(safe-area-inset-top)');
+      document.documentElement.style.setProperty('--safe-bottom', 'env(safe-area-inset-bottom)');
+    };
+    setVH();
+    window.visualViewport?.addEventListener('resize', setVH);
+    window.addEventListener('orientationchange', ()=> setTimeout(setVH, 300));
+  });
+
   function setTab(which){
     var isLogin = which==='login';
     var loginForm = document.getElementById('loginForm');
     var signupForm = document.getElementById('signupForm');
     var tabs = document.querySelectorAll('[data-auth-tab]');
-    tabs.forEach(function(t){
-      var active = t.dataset.authTab===which;
-      t.classList.toggle('active', active);
-    });
+    tabs.forEach(function(t){ t.classList.toggle('active', t.dataset.authTab===which); });
     if(loginForm){ loginForm.classList.toggle('hidden', !isLogin); loginForm.classList.toggle('active', isLogin); }
     if(signupForm){ signupForm.classList.toggle('hidden', isLogin); signupForm.classList.toggle('active', !isLogin); }
   }
@@ -132,6 +210,14 @@
     if(tab){ setTab(tab.dataset.authTab); }
   });
   window.setAuthTab = setTab;
+
+  // Bottom tabs sync with sidebar
+  document.addEventListener('click', function(e){
+    const b = e.target.closest('[data-view]');
+    if(!b) return;
+    const view = b.dataset.view;
+    document.querySelectorAll('[data-view]').forEach(x=> x.classList.toggle('active', x.dataset.view===view));
+  });
 })();
 </script>
 

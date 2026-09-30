@@ -1,3 +1,4 @@
+
 const Health = {
   recoveryScore({sleepHours=0, restingHR=60, avgHR=0, stepsYesterday=0, workoutCount=0}){
     let score=50;

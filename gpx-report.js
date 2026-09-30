@@ -1,4 +1,5 @@
-// GPX / FIT Deep Report v8.2 Dreeve Edition - Interactive Charts + Drill
+
+// GPX / FIT Deep Report v8.4 iPhone 14 Edition - Interactive Charts + Drill + iOS fixes
 const GpxReport = {
   data:null, map:null, poly:null, markers:[],
   charts: {},
@@ -34,8 +35,6 @@ const GpxReport = {
         distance:r.distance, cumDist:r.distance||0, raw:r.raw
       }));
     }
-
-    // Normalize cumDist
     if(type==='FIT'){
       let lastValid=0;
       for(let i=0;i<points.length;i++){
@@ -43,8 +42,6 @@ const GpxReport = {
         else points[i].cumDist=lastValid;
       }
     }
-
-    // Stats
     let totalDist=0, elevGain=0, elevLoss=0, minEle=Infinity, maxEle=-Infinity;
     let speeds=[], hrs=[], cads=[], powers=[];
     for(let i=0;i<points.length;i++){
@@ -62,20 +59,16 @@ const GpxReport = {
       if(p.cadence!=null) cads.push(p.cadence);
       if(p.power!=null) powers.push(p.power);
     }
-
     if(points.length){
       if(type==='GPX') totalDist=points[points.length-1].cumDist||0;
       else totalDist=points.filter(p=>p.distance!=null).pop()?.distance||sessions[0]?.distanceM||0;
     }
-
     const firstTime=points.find(p=>p.time)?.time || points.find(p=>p.timestamp)?.timestamp || sessions[0]?.start || new Date();
     const lastPointTime = [...points].reverse().find(p=>p.time||p.timestamp);
     const lastTime = (lastPointTime?.time||lastPointTime?.timestamp) || new Date(new Date(firstTime).getTime()+(sessions[0]?.elapsedSec||0)*1000);
     const totalTimeSec = Math.max(1, (new Date(lastTime)-new Date(firstTime))/1000 || sessions[0]?.elapsedSec||0);
     const avgSpeedKmh = totalTimeSec>0? (totalDist/1000)/(totalTimeSec/3600) : 0;
     const maxSpeedKmh = speeds.length?Math.max(...speeds):0;
-
-    // 1km splits - clickable
     const splits=[]; let lastSplitDist=0, lastSplitTime=new Date(firstTime), splitHr=[], splitEleGain=0, lastEle=points[0]?.ele?? points[0]?.altitude;
     for(let i=1;i<points.length;i++){
       const curDist=points[i].cumDist||0;
@@ -98,7 +91,6 @@ const GpxReport = {
         lastSplitDist=curDist; lastSplitTime=new Date(curTime); splitHr=[]; splitEleGain=0;
       }
     }
-
     this.data={
       fileName, type,
       sport:sessions[0]?.sport||points[0]?.sport||'Workout',
@@ -123,7 +115,6 @@ const GpxReport = {
   render(){
     const c=document.getElementById('gpxReportContainer'); if(!c||!this.data) return;
     const s=this.data.stats, d=this.data;
-
     c.innerHTML=`
       <div class="card" style="border:1px solid #c6ff00;background:#161616">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
@@ -139,19 +130,14 @@ const GpxReport = {
         <div id="gpxAiResult" style="margin-top:12px;background:#0a0a0a;padding:14px;border-radius:10px;border:1px solid #242424;white-space:pre-wrap;min-height:50px;font-size:13px">Tap AI Coach for full analysis...</div>
         <div id="pointDetail" style="margin-top:10px;background:#111;padding:10px;border-radius:8px;border:1px solid #222;display:none"></div>
       </div>
-
-      <div class="card"><div class="card-head"><h3>🗺 Map • click polyline to see point details</h3><small class="muted">${s.pointCount} GPS points</small></div><div id="gpxMap" style="height:380px;border-radius:12px;background:#0a0a0a;border:1px solid #242424"></div></div>
-
+      <div class="card"><div class="card-head"><h3>🗺 Map • tap polyline for details</h3><small class="muted">${s.pointCount} GPS points</small></div><div id="gpxMap" style="height:380px;border-radius:12px;background:#0a0a0a;border:1px solid #242424"></div></div>
       <div class="grid2-dreeve">
-        <div class="card"><div class="card-head"><h3>⛰ Elevation vs Distance • click to drill</h3><small class="muted">Tap chart</small></div><canvas id="eleChart" height="220"></canvas></div>
-        <div class="card"><div class="card-head"><h3>❤ HR / Speed / Power vs Distance</h3><small class="muted">Hover for details</small></div><canvas id="hrSpeedChart" height="220"></canvas><div style="display:flex;gap:12px;margin-top:8px;font-size:11px"><span style="color:#ff7a86">● HR bpm</span><span style="color:#58a9ff">● Speed km/h</span><span style="color:#c6ff00">● Power W</span></div></div>
+        <div class="card"><div class="card-head"><h3>⛰ Elevation • tap to drill</h3><small class="muted">Tap chart</small></div><canvas id="eleChart" height="220"></canvas></div>
+        <div class="card"><div class="card-head"><h3>❤ HR / Speed / Power</h3><small class="muted">Hover</small></div><canvas id="hrSpeedChart" height="220"></canvas><div style="display:flex;gap:12px;margin-top:8px;font-size:11px"><span style="color:#ff7a86">● HR bpm</span><span style="color:#58a9ff">● Speed km/h</span><span style="color:#c6ff00">● Power W</span></div></div>
       </div>
-
-      <div class="card"><div class="card-head"><h3>🏁 Splits per 1KM • click split to zoom map</h3><small class="muted">${d.splits.length} splits</small></div><div id="splitsTable"></div></div>
-
-      <div class="card"><div class="card-head"><h3>📋 All Data Points • first 300</h3><small class="muted">Export for full ${d.points.length}</small></div><div style="max-height:360px;overflow:auto;border:1px solid #242424;border-radius:8px"><table id="pointsTable" style="width:100%;border-collapse:collapse;font-size:11px;font-family:monospace"></table></div></div>
+      <div class="card"><div class="card-head"><h3>🏁 Splits per 1KM • tap to zoom</h3><small class="muted">${d.splits.length} splits</small></div><div id="splitsTable"></div></div>
+      <div class="card"><div class="card-head"><h3>📋 All Data Points • first 300</h3><small class="muted">Export for full ${d.points.length}</small></div><div style="max-height:360px;overflow:auto;border:1px solid #242424;border-radius:8px;-webkit-overflow-scrolling:touch"><table id="pointsTable" style="width:100%;border-collapse:collapse;font-size:11px;font-family:monospace"></table></div></div>
     `;
-
     document.getElementById('gpxAiBtn').onclick=()=>this.runAi();
     document.getElementById('gpxExportBtn').onclick=()=>this.exportJson();
     setTimeout(()=>{ this.drawMap(); this.drawCharts(); this.drawTables(); }, 150);
@@ -160,15 +146,15 @@ const GpxReport = {
   drawMap(){
     const el=document.getElementById('gpxMap'); if(!el||!this.data) return;
     const pts=this.data.points.filter(p=>p.lat!=null&&p.lon!=null&&!isNaN(p.lat));
-    if(!pts.length){ el.innerHTML='<div style="padding:40px;text-align:center" class="muted">No GPS (indoor trainer) • ${this.data.stats.pointCount} points without lat/lon</div>'; return; }
-    if(typeof L==='undefined'){ el.innerHTML='<div style="padding:20px">Leaflet offline • ${pts.length} points</div>'; return; }
+    if(!pts.length){ el.innerHTML='<div style="padding:40px;text-align:center" class="muted">No GPS (indoor trainer) • '+this.data.stats.pointCount+' points without lat/lon</div>'; return; }
+    if(typeof L==='undefined'){ el.innerHTML='<div style="padding:20px">Leaflet offline • '+pts.length+' points</div>'; return; }
     if(this.map){ this.map.remove(); this.map=null; }
     this.markers=[];
-    this.map=L.map(el).setView([pts[0].lat,pts[0].lon],13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM'}).addTo(this.map);
+    // iOS fix: tap true
+    this.map=L.map(el, {tap:true, touchZoom:true, dragging:true}).setView([pts[0].lat,pts[0].lon],13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM', maxZoom:19}).addTo(this.map);
     const latlngs=pts.map(p=>[p.lat,p.lon]);
     this.poly=L.polyline(latlngs,{color:'#c6ff00',weight:4,opacity:0.9}).addTo(this.map);
-    // Click polyline to show nearest point details
     this.poly.on('click', (e)=>{
       let minIdx=0, minDist=Infinity;
       pts.forEach((p,i)=>{ const d=Math.hypot(p.lat-e.latlng.lat, p.lon-e.latlng.lng); if(d<minDist){ minDist=d; minIdx=i; } });
@@ -177,6 +163,7 @@ const GpxReport = {
     L.circleMarker(latlngs[0],{radius:8,color:'#5de8b6',fillColor:'#5de8b6',fillOpacity:1}).addTo(this.map).bindPopup(`START<br>${pts[0].lat.toFixed(5)},${pts[0].lon.toFixed(5)}`);
     L.circleMarker(latlngs[latlngs.length-1],{radius:8,color:'#ff7a86',fillColor:'#ff7a86',fillOpacity:1}).addTo(this.map).bindPopup(`FINISH<br>${pts[pts.length-1].lat.toFixed(5)},${pts[pts.length-1].lon.toFixed(5)}`);
     this.map.fitBounds(this.poly.getBounds(),{padding:[30,30]});
+    setTimeout(()=>{ this.map.invalidateSize(); }, 300);
   },
 
   showPointDetail(idx){
@@ -189,33 +176,34 @@ const GpxReport = {
         <div>Power: <b style="color:#c6ff00">${p.power||'--'} W</b></div><div>Cad: <b>${p.cadence||'--'}</b></div><div>Temp: <b>${p.temp||'--'}°C</b></div>
         <div style="grid-column:span 3">LatLon: ${p.lat?.toFixed(5)},${p.lon?.toFixed(5)} • ${p.time?new Date(p.time).toLocaleTimeString():''}</div>
       </div>`;
-    // Sync elevation chart highlight
     if(this.charts.ele) { this.charts.ele.setActiveElements([{datasetIndex:0,index:idx}]); this.charts.ele.update(); }
   },
 
   drawCharts(){
     if(typeof Chart==='undefined') return;
     const pts=this.data.points;
-    const distLabels=pts.map(p=> ((p.cumDist||0)/1000).toFixed(2));
+    // iPhone 14: sample down to 400 points for performance
+    const maxPts = 400;
+    const step = Math.max(1, Math.floor(pts.length / maxPts));
+    const sampled = pts.filter((_,i)=> i % step === 0);
+    const distLabels=sampled.map(p=> ((p.cumDist||0)/1000).toFixed(2));
 
-    // Elevation Chart - interactive drill
     const eleCanvas=document.getElementById('eleChart');
     if(eleCanvas){
       if(this.charts.ele) this.charts.ele.destroy();
-      const eleData=pts.map(p=> p.ele?? p.altitude?? null);
+      const eleData=sampled.map(p=> p.ele?? p.altitude?? null);
       this.charts.ele=new Chart(eleCanvas,{
         type:'line',
         data:{ labels: distLabels, datasets:[{ label:'Elevation m', data:eleData, borderColor:'#5de8b6', backgroundColor:'rgba(93,232,182,0.15)', fill:true, tension:0.3, pointRadius:0, pointHoverRadius:6 }]},
         options:{
+          responsive:true, maintainAspectRatio:false,
           interaction:{ mode:'index', intersect:false },
-          onClick:(e,els)=>{ if(els.length){ this.showPointDetail(els[0].index); } },
+          onClick:(e,els)=>{ if(els.length){ const realIdx = els[0].index * step; this.showPointDetail(realIdx); } },
           plugins:{ legend:{display:false}, tooltip:{ callbacks:{ title:items=>`${items[0].label} km`, label:item=>`Ele: ${item.parsed.y?.toFixed(0)} m` } } },
-          scales:{ x:{ grid:{color:'#1e1e1e'}, ticks:{color:'#8a8a8a', maxTicksLimit:8} }, y:{ grid:{color:'#1e1e1e'}, ticks:{color:'#8a8a8a'} } }
+          scales:{ x:{ grid:{color:'#1e1e1e'}, ticks:{color:'#8a8a8a', maxTicksLimit:6} }, y:{ grid:{color:'#1e1e1e'}, ticks:{color:'#8a8a8a'} } }
         }
       });
     }
-
-    // HR / Speed / Power Chart
     const hrCanvas=document.getElementById('hrSpeedChart');
     if(hrCanvas){
       if(this.charts.hr) this.charts.hr.destroy();
@@ -224,28 +212,23 @@ const GpxReport = {
         data:{
           labels: distLabels,
           datasets:[
-            { label:'HR bpm', data:pts.map(p=>p.hr||null), borderColor:'#ff7a86', backgroundColor:'transparent', tension:0.3, pointRadius:0, yAxisID:'y' },
-            { label:'Speed km/h', data:pts.map(p=>p.speed||null), borderColor:'#58a9ff', backgroundColor:'transparent', tension:0.3, pointRadius:0, yAxisID:'y1' },
-            { label:'Power W', data:pts.map(p=>p.power||null), borderColor:'#c6ff00', backgroundColor:'transparent', tension:0.3, pointRadius:0, yAxisID:'y1', hidden:true }
+            { label:'HR bpm', data:sampled.map(p=>p.hr||null), borderColor:'#ff7a86', backgroundColor:'transparent', tension:0.3, pointRadius:0, yAxisID:'y' },
+            { label:'Speed km/h', data:sampled.map(p=>p.speed||null), borderColor:'#58a9ff', backgroundColor:'transparent', tension:0.3, pointRadius:0, yAxisID:'y1' },
+            { label:'Power W', data:sampled.map(p=>p.power||null), borderColor:'#c6ff00', backgroundColor:'transparent', tension:0.3, pointRadius:0, yAxisID:'y1', hidden:true }
           ]
         },
         options:{
+          responsive:true, maintainAspectRatio:false,
           interaction:{ mode:'index', intersect:false },
-          onClick:(e,els)=>{ if(els.length){ this.showPointDetail(els[0].index); } },
+          onClick:(e,els)=>{ if(els.length){ const realIdx = els[0].index * step; this.showPointDetail(realIdx); } },
           plugins:{ legend:{labels:{color:'#8a8a8a', boxWidth:12}} },
           scales:{
-            x:{ grid:{color:'#1e1e1e'}, ticks:{color:'#8a8a8a', maxTicksLimit:8} },
+            x:{ grid:{color:'#1e1e1e'}, ticks:{color:'#8a8a8a', maxTicksLimit:6} },
             y:{ position:'left', grid:{color:'#1e1e1e'}, ticks:{color:'#ff7a86'} },
             y1:{ position:'right', grid:{display:false}, ticks:{color:'#58a9ff'} }
           }
         }
       });
-    }
-
-    // Also update dashboard eleHrChart if exists
-    const dashEle=document.getElementById('eleHrChart');
-    if(dashEle && typeof renderGpxDetailCharts==='undefined'){
-      // reused in app.js
     }
   },
 
@@ -271,7 +254,6 @@ const GpxReport = {
     const bounds=L.latLngBounds(pts.map(p=>[p.lat,p.lon]));
     this.map.fitBounds(bounds,{padding:[40,40]});
     this.showPointDetail(split.startIdx);
-    toast(`Zoomed to KM ${km}`);
   },
 
   async runAi(){
@@ -289,7 +271,7 @@ const GpxReport = {
 
   exportJson(){
     const blob=new Blob([JSON.stringify(this.data,null,2)],{type:'application/json'});
-    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`${this.data.fileName}-DREEVE-v8.2-${new Date().toISOString().slice(0,10)}.json`; a.click();
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`${this.data.fileName}-DREEVE-iP14-${new Date().toISOString().slice(0,10)}.json`; a.click();
   },
 
   haversine(lat1,lon1,lat2,lon2){

@@ -1,3 +1,4 @@
+
 const Integrations = {
   parseCSV(text){
     const lines=text.trim().split(/\r?\n/); if(lines.length<2) return [];
@@ -68,11 +69,9 @@ const Integrations = {
         const lt=(header>>5)&0x03;
         const def=definitions[lt];
         if(!def) continue;
-        // compressed timestamp: 5 bits offset
         const timeOffset=header&0x1F;
         if(lastTimestamp!==null) lastTimestamp = (lastTimestamp & 0xFFFFFFE0) + timeOffset;
         if((lastTimestamp & 0x1F) < timeOffset) lastTimestamp -= 32;
-        // actually Garmin spec more complex, simplified: just use last + offset diff
         const msg={253: lastTimestamp};
         for(const f of def.fields){
           const bt=f.baseType&0x1F; const sz=baseSizes[bt]||1;
@@ -121,7 +120,6 @@ const Integrations = {
           }else{
             const cnt=Math.max(1,Math.floor(f.size/sz)); const arr=[];
             for(let i=0;i<cnt;i++){ let v=getVal(bt,def.littleEndian,offset); offset+=sz; if(isInvalid(bt,v)) v=null; else arr.push(v); if(arr.length===1 && v===null) arr[0]=null; }
-            // handle cnt
             if(cnt===1) msg[f.fieldDefNum]=arr[0]!==undefined?arr[0]:null;
             else msg[f.fieldDefNum]=arr;
           }
@@ -134,8 +132,6 @@ const Integrations = {
         else if(def.globalMessageNumber===0) fileIdRaw.push(msg);
       }
     }
-
-    // BUILD DETAILED RECORDS — FIXED: don't filter out indoor (no lat/lon) and keep all timestamps
     const recordsDetailed = recordsRaw.map(r=>{
       const ts = r[253]!=null? toDate(r[253]) : null;
       const latRaw=r[0], lonRaw=r[1];
@@ -186,10 +182,9 @@ const Integrations = {
         maxHr:hrs.length?Math.max(...hrs):null, isEstimated:true
       }];
     }
-
     return {sessions, recordsDetailed, lapsRaw, recordsRaw, fileIdRaw, debug:{defs:Object.keys(definitions).length, sessionsRaw:sessionsRaw.length, lapsRaw:lapsRaw.length, recordsRaw:recordsRaw.length, detailed:recordsDetailed.length}};
   },
-  parseGpx(text){ /* keep your existing parseGpx — it works */
+  parseGpx(text){
     const parser=new DOMParser(), xml=parser.parseFromString(text,"application/xml");
     if(xml.getElementsByTagName("parsererror").length) throw new Error("Invalid GPX XML");
     const trks=xml.getElementsByTagName("trk"); const tracks=[];

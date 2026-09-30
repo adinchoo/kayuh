@@ -1,4 +1,4 @@
-// AI Engine v7.4 - GPX FULL + Puter
+// AI Engine v8.4 iPhone 14 - GPX FULL + Puter
 const AI = {
   MODELS: {
     text: 'gemini-2.0-flash-lite',
@@ -65,7 +65,7 @@ const AI = {
     return null;
   },
   async analyzeFoodPhoto(file){
-    if(!this.isPuterReady()) return {error: "Puter not loaded. Refresh page and allow https://js.puter.com/v2/"};
+    if(!this.isPuterReady()) return {error: "Puter not loaded. Refresh page and allow https://js.puter.com/v2/ - On iPhone, ensure you are online"};
     const dataUrl = await new Promise((res, rej)=>{ const r = new FileReader(); r.onload = ()=> res(r.result); r.onerror = rej; r.readAsDataURL(file); });
     const prompt = `Nutrition expert. Analyze this food photo. Estimate dish name (English), calories, protein_g, carbs_g, fat_g. Return ONLY valid JSON: {"name":"Dish Name","calories":123,"protein_g":12,"carbs_g":20,"fat_g":10} If not food, return {"error":"not_food"}`;
     const tryModels = [this.MODELS.vision, this.MODELS.vision_backup, 'gemini-2.5-flash-lite', 'gemini-3.1-flash-lite'];
@@ -82,7 +82,6 @@ const AI = {
     }
     return {error: "Food photo failed, last: " + lastErr};
   },
-  // NEW: GPX / FIT DEEP ANALYSIS
   async analyzeGpxFitReport(profile, data){
     if(!this.isPuterReady()) return "❌ Puter not loaded. Open via https and allow https://js.puter.com/v2/ script";
     const s=data.stats;
@@ -90,13 +89,11 @@ const AI = {
     const splitsStr = data.splits.slice(0,12).map(sp=>`KM${sp.km}: ${Math.floor(sp.durationSec/60)}:${String(Math.round(sp.durationSec%60)).padStart(2,'0')} HR${sp.avgHr||'--'} +${Math.round(sp.elevGain)}m`).join(' | ');
     const prompt = `You are elite endurance coach & sports scientist for ${profile.full_name||'athlete'}, goal ${profile.primary_goal||'improve_fitness'}.
 Analyze this ${data.type} file in extreme detail:
-
 File: ${data.fileName}
 Sport: ${data.sport} | Distance: ${s.totalDistKm.toFixed(3)}km (${s.totalDistM.toFixed(0)}m) | Duration: ${Math.floor(s.totalTimeSec/60)}m ${Math.round(s.totalTimeSec%60)}s | Elev Gain ${Math.round(s.elevGain)}m Loss ${Math.round(s.elevLoss)}m (min ${Math.round(s.minEle)} max ${Math.round(s.maxEle)})
 Speed: avg ${s.avgSpeedKmh.toFixed(1)}km/h max ${s.maxSpeedKmh.toFixed(1)} | HR avg ${s.avgHr||0} max ${s.maxHr||0} | Power avg ${s.avgPower||0}W max ${s.maxPower||0}W | Cad avg ${s.avgCad||0} max ${s.maxCad||0} | Points ${s.pointCount} Laps ${s.lapCount}
 Splits: ${splitsStr}
 Sample trackpoints: ${JSON.stringify(samplePoints)}
-
 Provide 6 sections with emoji, English, max 350 words:
 1. Overview & Effort Score
 2. Pace / Speed Analysis & Variability
@@ -104,9 +101,7 @@ Provide 6 sections with emoji, English, max 350 words:
 4. Elevation / Terrain Impact
 5. Efficiency: Cadence, Power, Form
 6. 3 Actionable Improvements for next same route
-
 Be specific to numbers, no generic advice.`;
-
     const tryModels=[this.MODELS.report, this.MODELS.report_backup, 'gemini-2.0-flash', 'gemini-2.5-flash'];
     let lastErr='';
     for(let m of tryModels){
@@ -120,7 +115,7 @@ Be specific to numbers, no generic advice.`;
     return "AI failed: "+lastErr;
   },
   async testPuter(){
-    if(!this.isPuterReady()) throw new Error("Puter not ready - check internet and https://js.puter.com/v2/ loaded");
+    if(!this.isPuterReady()) throw new Error("Puter not ready - check internet and https://js.puter.com/v2/ loaded. On iPhone PWA, you must be online for AI.");
     const modelsToTry = [this.MODELS.text, 'gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
     let lastErr="";
     for(let m of modelsToTry){

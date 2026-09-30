@@ -1,10 +1,26 @@
 {
-  "name": "Fitness AI Hub",
-  "short_name": "FitnessAI",
-  "start_url": "./index.html",
+  "name": "Adinchoo Dreeve - Fitness AI Hub",
+  "short_name": "Adinchoo",
+  "description": "GPX/FIT analysis, nutrition AI, offline PWA for iPhone 14",
   "display": "standalone",
-  "background_color": "#090d0b",
-  "theme_color": "#c6ff00",
+  "display_override": [
+    "standalone",
+    "fullscreen",
+    "minimal-ui"
+  ],
+  "orientation": "any",
+  "theme_color": "#0a0a0a",
+  "background_color": "#0a0a0a",
+  "scope": "./",
+  "start_url": "./index.html?source=pwa&utm_source=homescreen",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": [
+    "health",
+    "fitness",
+    "sports"
+  ],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "assets/icons/icon-192.png",
@@ -23,6 +39,46 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    },
+    {
+      "src": "assets/icons/apple-touch-icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "assets/icons/apple-splash-1170x2532.png",
+      "sizes": "1170x2532",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Import GPX",
+      "short_name": "Import",
+      "description": "Import FIT or GPX file",
+      "url": "./index.html?view=gpxReportView",
+      "icons": [
+        {
+          "src": "assets/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Log Meal",
+      "short_name": "Meal",
+      "description": "Log nutrition with AI",
+      "url": "./index.html?view=foodView",
+      "icons": [
+        {
+          "src": "assets/icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ]
 }
