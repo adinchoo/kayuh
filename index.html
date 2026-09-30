@@ -131,7 +131,11 @@
   </section>
 
   <section id="gpxReportView" class="view">
-    <div class="card dashed"><input type="file" id="gpxReportFile" accept=".gpx,.fit" hidden><div id="gpxDropZone"><div style="font-size:42px">🗺️</div><h3>Drop FIT or GPX here</h3><p class="muted">iPhone: Tap to open Files app • Or tap any Activity for full report</p><button class="btn primary" onclick="document.getElementById('gpxReportFile').click()">📁 Open file</button></div><div id="quickImportStatus" class="muted" style="margin-top:10px"></div></div>
+    <div class="card dashed"><input type="file" id="gpxReportFile" accept=".gpx,.fit" hidden><div id="gpxDropZone">
+  <div style="font-size:42px">🗺️</div><h3>Drop FIT or GPX here</h3>
+  <p class="muted">iPhone: Tap to open Files app</p>
+  <label for="gpxReportFile" class="btn primary" style="display:inline-flex;cursor:pointer">📁 Open file</label>
+</div><div id="quickImportStatus" class="muted" style="margin-top:10px"></div></div>
     <div id="gpxReportContainer"></div>
   </section>
 

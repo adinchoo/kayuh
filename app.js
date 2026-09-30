@@ -210,7 +210,17 @@ function initUI(){
   $("#nextMonth")?.addEventListener('click',()=>{ currentCalendarDate.setMonth(currentCalendarDate.getMonth()+1); renderCalendar(); });
   const gpxFile=$("#gpxReportFile");
   if(gpxFile){
-    gpxFile.onchange=e=>{ const f=e.target.files[0]; if(f){ GpxReport.loadFile(f).then(()=>{ switchView('gpxReportView'); toast('Loaded '+f.name); }).catch(err=>toast(err.message,true)); } };
+    gpxFile.onchange=async e=>{
+      const f=e.target.files[0];
+      if(!f) return;
+      try{
+        await GpxReport.loadFile(f);
+        switchView('gpxReportView');
+        toast('Loaded '+f.name);
+      }catch(err){toast(err.message,true);}
+      e.target.value=''; // reset for iOS re-select same file
+    };
+  }
     const dz=$("#gpxDropZone");
     if(dz){
       dz.ondragover=e=>{ e.preventDefault(); dz.style.borderColor='#c6ff00'; };

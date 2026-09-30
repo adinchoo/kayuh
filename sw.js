@@ -1,5 +1,5 @@
 
-const CACHE="fitness-v8.4-iphone14";
+const CACHE="fitness-v8.4.2";
 const ASSETS=[
   "./",
   "./index.html",
