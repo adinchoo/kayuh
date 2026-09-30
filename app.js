@@ -1,6 +1,5 @@
-
 "use strict";
-// ADINCHOO DREEVE v8.4 - iPhone 14 PWA Optimized
+// ADINCHOO DREEVE v8.4.1 - CHART STABLE - iPhone 14 PWA
 const SUPABASE_URL = "https://dxgzluurwsoytqlasuup.supabase.co";
 const SUPABASE_KEY = "sb_publishable_RTeGJ9m_CL26fUMXwEGLJQ_JfGiLyit";
 let db=null,user=null,profile=null;
@@ -8,21 +7,18 @@ let records={meals:[],activities:[],body:[],workoutSessions:[],workoutExercises:
 let selectedFoods=[], currentCategory="Main", currentCalendarDate=new Date();
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
 
-// iPhone 14 PWA helpers
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
 const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
-const isIPhone14 = window.screen.width===390 && window.screen.height===844 || window.screen.width===844 && window.screen.height===390;
 
 function updateStandaloneChecks(){
   const el = $("#checkSW");
-  if(el) el.textContent = ('serviceWorker' in navigator) ? 'Supported' : 'No';
+  if(el) el.textContent = ('serviceWorker' in navigator)? 'Supported' : 'No';
   if('serviceWorker' in navigator){
     navigator.serviceWorker.getRegistration().then(reg=>{
-      if(el) el.textContent = reg ? `Registered ${reg.active?'active':''}` : 'Not registered';
+      if(el) el.textContent = reg? `Registered ${reg.active?'active':''}` : 'Not registered';
     });
   }
 }
-
 const show=id=>{
   ["setupScreen","authScreen","app"].forEach(x=>{
     const el=$("#"+x);
@@ -36,18 +32,13 @@ const dayStr=d=>{const dt=new Date(d);return `${dt.getFullYear()}-${String(dt.ge
 const todayStr=()=>dayStr(new Date());
 const isSameDay=(a,b)=>dayStr(a)===dayStr(b);
 const isToday=d=>isSameDay(d,new Date());
-
 function client(){ if(!window.supabase) throw new Error("Supabase SDK not loaded"); db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true, flowType:'pkce'}}) }
 
-// iPhone 14 PWA: register SW with update handling
 async function registerSW(){
   if(!('serviceWorker' in navigator)) { updateStandaloneChecks(); return; }
   try{
     const reg = await navigator.serviceWorker.register('./sw.js', {scope:'./', updateViaCache:'none'});
-    console.log('SW registered', reg.scope, 'iPhone14:', isIPhone14);
     updateStandaloneChecks();
-    
-    // Check for update on app focus (iOS doesn't auto-update often)
     reg.addEventListener('updatefound', ()=>{
       const nw = reg.installing;
       nw.addEventListener('statechange', ()=>{
@@ -56,28 +47,14 @@ async function registerSW(){
         }
       });
     });
-    
-    // iOS: when returning from background, check for SW update
     document.addEventListener('visibilitychange', ()=>{
-      if(document.visibilityState==='visible'){
-        reg.update().catch(()=>{});
-      }
+      if(document.visibilityState==='visible'){ reg.update().catch(()=>{}); }
     });
-    
-    // Handle controller change (new SW activated)
-    navigator.serviceWorker.addEventListener('controllerchange', ()=>{
-      // Don't auto-reload on iOS, it can cause loop
-      console.log('SW controller changed');
-    });
-  }catch(e){
-    console.warn('SW reg failed', e);
-    if($("#checkSW")) $("#checkSW").textContent = 'Failed: '+e.message;
-  }
+  }catch(e){ console.warn('SW reg failed', e); if($("#checkSW")) $("#checkSW").textContent = 'Failed: '+e.message; }
 }
 
 async function boot(){
   try{
-    // Register SW first for iPhone offline support
     registerSW();
     client();
     const {data:{session}} = await db.auth.getSession();
@@ -87,23 +64,14 @@ async function boot(){
       if(ev==="SIGNED_IN"&&s?.user){ user=s.user; await enterApp(); }
       if(ev==="SIGNED_OUT"){ show("authScreen"); if(window.setAuthTab) window.setAuthTab("login"); }
     });
-    
-    // iOS orientation change fix for charts and map
     window.addEventListener('orientationchange', ()=>{
-      setTimeout(()=>{
-        if(window.GpxReport?.map){ window.GpxReport.map.invalidateSize(); }
-        renderDreeveCharts();
-        if(window.GpxReport?.data) GpxReport.drawCharts();
-      }, 500);
+      setTimeout(()=>{ if(window.GpxReport?.map){ window.GpxReport.map.invalidateSize(); } renderDreeveCharts(); }, 600);
     });
-    
-    // Fix iOS 100vh issue - already handled in index.html but double ensure
     if(isIOS && window.visualViewport){
       window.visualViewport.addEventListener('resize', ()=>{
         document.documentElement.style.setProperty('--vh', `${window.visualViewport.height * 0.01}px`);
       });
     }
-    
   }catch(e){ console.error(e); show("authScreen"); toast(e.message,true) }
 }
 
@@ -112,7 +80,6 @@ function initAuth(){
   const signupForm=$("#signupForm");
   const createBtn=$("#createAccountBtn");
   if(createBtn){ createBtn.disabled=false; createBtn.style.pointerEvents="auto"; createBtn.style.opacity="1"; }
-
   loginForm?.addEventListener("submit", async e=>{
     e.preventDefault();
     const f=new FormData(e.currentTarget);
@@ -124,7 +91,6 @@ function initAuth(){
     if(error) return toast(error.message,true);
     user=data.user; await enterApp(); toast("Welcome back" + (isStandalone?" - PWA":""));
   });
-
   signupForm?.addEventListener("submit", async e=>{
     e.preventDefault();
     const f=new FormData(e.currentTarget);
@@ -135,7 +101,6 @@ function initAuth(){
     const btn=e.currentTarget.querySelector('button[type="submit"]');
     const oldText=btn?btn.textContent:"";
     if(btn){ btn.disabled=true; btn.textContent="Creating..."; }
-
     const detail={
       full_name:String(f.get("full_name")||"").trim()||"User",
       date_of_birth:String(f.get("date_of_birth")||"")||null,
@@ -154,10 +119,9 @@ function initAuth(){
     if(data.session){ user=data.user; await enterApp(); toast("Account created"); }
     else { toast("Account created — check email or disable confirm in Supabase"); if(window.setAuthTab) window.setAuthTab("login"); }
   });
-
-  $("#forgotButton")?.addEventListener('click',async()=>{ const email=prompt("Email for reset:"); if(!email) return; const {error}=await db.auth.resetPasswordForEmail(email); toast(error?error.message:"Reset sent — check email",!!error); });
+  $("#forgotButton")?.addEventListener('click',async()=>{ const email=prompt("Email for reset:"); if(!email) return; const {error}=await db.auth.resetPasswordForEmail(email); toast(error?error.message:"Reset sent",!!error); });
   $("#logoutButton")?.addEventListener('click',async()=>{ await db.auth.signOut(); user=null; profile=null; show("authScreen"); if(window.setAuthTab) window.setAuthTab("login"); });
-  $("#syncButton")?.addEventListener('click',async()=>{ await loadRecords(); renderAll(); toast("Synced" + (isIOS?" - iOS":"")) });
+  $("#syncButton")?.addEventListener('click',async()=>{ await loadRecords(); renderAll(); toast("Synced") });
 }
 
 async function enterApp(){
@@ -165,13 +129,9 @@ async function enterApp(){
   const ps=$("#pageSub"); if(ps) ps.textContent=`${new Date().getFullYear()} • iPhone 14 PWA ${isStandalone?'Installed ✓':'Browser'} • ${SUPABASE_URL.split('.')[0].split('//')[1]}`;
   await Promise.all([loadProfile(), loadRecords()]);
   initUI(); renderAll(); updateAutoSyncUrl();
-  
-  // Handle ?view= param from shortcuts
   const params = new URLSearchParams(location.search);
   const viewParam = params.get('view');
-  if(viewParam && document.getElementById(viewParam)){
-    setTimeout(()=>switchView(viewParam), 300);
-  }
+  if(viewParam && document.getElementById(viewParam)){ setTimeout(()=>switchView(viewParam), 300); }
 }
 function updateAutoSyncUrl(){
   const el=$("#finalUrl"); if(!el||!user) return;
@@ -190,7 +150,7 @@ async function loadProfile(){
       target_steps:10000, target_sleep_hours:7.5,
     };
     const {data:ins,error:ie}=await db.from("profiles").insert(payload).select().single();
-    if(ie){ console.error(ie); profile=payload; } else profile=ins;
+    if(ie){ profile=payload; } else profile=ins;
   } else profile=data;
 }
 async function loadRecords(){
@@ -206,6 +166,16 @@ async function loadRecords(){
   records.meals=res[0].value?.data||[]; records.activities=res[1].value?.data||[];
   records.body=res[2].value?.data||[]; records.steps=res[3].value?.data||[];
   records.hr=res[4].value?.data||[]; records.sleep=res[5].value?.data||[];
+  try{
+    const {data:gpxData}=await db.from("gpx_tracks").select("*").order("logged_at",{ascending:false}).limit(100);
+    if(gpxData?.length){
+      gpxData.forEach(g=>{
+        if(!records.activities.find(a=>a.gpx_track_id===g.id)){
+          records.activities.push({id:g.id, activity_name:g.activity_type, distance_km:g.distance_km, duration_minutes:g.duration_minutes, calories_burned:g.calories_est, source:'GPX', logged_at:g.logged_at, gpx_track_id:g.id});
+        }
+      });
+    }
+  }catch(e){}
 }
 
 async function handleFoodPhoto(file){
@@ -217,37 +187,36 @@ async function handleFoodPhoto(file){
   try{
     const res=await AI.analyzeFoodPhoto(file);
     if(res.error) throw new Error(res.error);
-    if(status) status.innerHTML=`✅ <strong>${esc(res.name)}</strong> • ${res.calories} kcal • P ${res.protein_g||0}g`;
+    if(status) status.innerHTML=`✅ <strong>${esc(res.name)}</strong> • ${res.calories} kcal`;
     addSelected({name:res.name,kcal:res.calories,protein:res.protein_g||0,carbs:res.carbs_g||0,fat:res.fat_g||0});
   }catch(e){ if(status) status.innerHTML=`<span style="color:#ff7a86">❌ ${esc(e.message)}</span>`; }
   finally{ if(logBtn){ logBtn.disabled=false; renderSelected(); } }
 }
 
 function initUI(){
-  $$('[data-view]').forEach(b=>b.onclick=()=>switchView(b.dataset.view));
-  $$('[data-open]').forEach(b=>b.onclick=()=>{ const d=$("#"+b.dataset.open); if(!d) return; d.showModal?.(); });
-  $$('[data-close]').forEach(b=>b.onclick=()=>b.closest("dialog")?.close());
+  $$('[data-view]').forEach(b=>b.addEventListener('click',()=>switchView(b.dataset.view)));
+  $$('[data-open]').forEach(b=>b.addEventListener('click',()=>{ const d=$("#"+b.dataset.open); if(!d) return; d.showModal?.(); }));
+  $$('[data-close]').forEach(b=>b.addEventListener('click',()=>b.closest("dialog")?.close()));
   const cats=Object.keys(window.FOOD_DB||{}); const ct=$("#mealCatTabs"); if(ct) ct.innerHTML=cats.map(c=>`<button type="button" data-cat="${c}" class="btn small">${c}</button>`).join("");
   ct?.querySelectorAll('[data-cat]')?.forEach(b=>b.addEventListener('click',()=>{ currentCategory=b.dataset.cat; renderMealOptions(); }));
   $("#mealCameraInput")?.addEventListener('change',e=>handleFoodPhoto(e.target.files[0]));
   $("#foodPhotoInput")?.addEventListener('change',e=>handleFoodPhoto(e.target.files[0]));
   $("#bodyForm")?.addEventListener('submit',saveBody);
   $("#mealForm")?.addEventListener('submit',saveMeal);
-  $("#chartMetric")?.addEventListener('change',renderDreeveCharts);
+  $("#chartMetric")?.addEventListener('change',()=>{ destroyCharts(); setTimeout(renderDreeveCharts,100); });
   $("#sportFilter")?.addEventListener('change',e=>renderActivitiesTable(e.target.value==='all'?'':e.target.value));
   $("#searchAct")?.addEventListener('input',e=>renderActivitiesTable(e.target.value));
-  $("#yearFilter")?.addEventListener('change',renderDreeveCharts);
+  $("#yearFilter")?.addEventListener('change',()=>{ destroyCharts(); setTimeout(renderDreeveCharts,100); });
   $("#prevMonth")?.addEventListener('click',()=>{ currentCalendarDate.setMonth(currentCalendarDate.getMonth()-1); renderCalendar(); });
   $("#nextMonth")?.addEventListener('click',()=>{ currentCalendarDate.setMonth(currentCalendarDate.getMonth()+1); renderCalendar(); });
   const gpxFile=$("#gpxReportFile");
   if(gpxFile){
-    gpxFile.onchange=e=>{ const f=e.target.files[0]; if(f){ GpxReport.loadFile(f).then(()=>{ switchView('gpxReportView'); toast('Loaded '+f.name); renderGpxDetailCharts(); }).catch(err=>toast(err.message,true)); } };
+    gpxFile.onchange=e=>{ const f=e.target.files[0]; if(f){ GpxReport.loadFile(f).then(()=>{ switchView('gpxReportView'); toast('Loaded '+f.name); }).catch(err=>toast(err.message,true)); } };
     const dz=$("#gpxDropZone");
-    if(dz){ 
-      dz.ondragover=e=>{ e.preventDefault(); dz.style.borderColor='#c6ff00'; }; 
-      dz.ondragleave=()=>dz.style.borderColor=''; 
-      dz.ondrop=e=>{ e.preventDefault(); const f=e.dataTransfer.files[0]; if(f){ GpxReport.loadFile(f).then(()=>{ switchView('gpxReportView'); renderGpxDetailCharts(); }); } }; 
-      // iOS doesn't support drag, tap to open
+    if(dz){
+      dz.ondragover=e=>{ e.preventDefault(); dz.style.borderColor='#c6ff00'; };
+      dz.ondragleave=()=>dz.style.borderColor='';
+      dz.ondrop=e=>{ e.preventDefault(); const f=e.dataTransfer.files[0]; if(f){ GpxReport.loadFile(f).then(()=>switchView('gpxReportView')); } };
       dz.onclick=()=>{ if(isIOS) $("#gpxReportFile")?.click(); };
     }
   }
@@ -259,7 +228,8 @@ function switchView(id){
   const titles={dashboardView:'Dashboard',monthlyView:'Monthly',activitiesView:'Activities',gpxReportView:'GPX Report',foodView:'Nutrition',profileView:'Settings'};
   const pt=$("#pageTitle"); if(pt) pt.textContent=titles[id]||id;
   window.scrollTo(0,0);
-  if(id==="gpxReportView"&&window.GpxReport?.data) setTimeout(()=>{ GpxReport.drawMap?.(); renderGpxDetailCharts(); },200);
+  if(id==="dashboardView"){ setTimeout(()=>{ renderDreeveCharts(); },150); }
+  if(id==="gpxReportView"&&window.GpxReport?.data) setTimeout(()=>{ GpxReport.drawMap?.(); },200);
 }
 function renderAll(){
   const latestWeight=records.body[0]?.weight_kg||profile?.current_weight_kg||0;
@@ -278,8 +248,8 @@ function renderAll(){
 function renderTodayLogs(){
   const el=$("#todayLogs"); if(!el) return;
   const items=[...records.meals.map(x=>({...x,_d:x.meal_name,_m:`${x.calories} kcal`})),
-            ...records.activities.map(x=>({...x,_d:x.activity_name,_m:`${x.distance_km}km`}))]
-            .sort((a,b)=>new Date(b.logged_at)-new Date(a.logged_at));
+           ...records.activities.map(x=>({...x,_d:x.activity_name,_m:`${x.distance_km}km`}))]
+           .sort((a,b)=>new Date(b.logged_at)-new Date(a.logged_at));
   el.innerHTML=items.slice(0,8).map(x=>`<div class="row"><div><strong>${esc(x._d)}</strong><br><small class="muted">${new Date(x.logged_at).toLocaleTimeString()} • ${x._m}</small></div></div>`).join('')||'<div class="muted">No logs today</div>';
 }
 function renderMealOptions(){
@@ -317,6 +287,23 @@ async function saveBody(e){ e.preventDefault(); const fd=new FormData(e.currentT
 function buildProfileForm(){ const f=$("#profileForm"); if(!f||!profile) return; f.innerHTML=`<label>Full name<input name="full_name" value="${esc(profile.full_name||'')}" ></label><label>Target kg<input name="target_weight_kg" type="number" step="0.1" value="${profile.target_weight_kg||68}" inputmode="decimal"></label><button class="btn primary" type="submit">Save</button>`; f.onsubmit=async e=>{ e.preventDefault(); const fd=new FormData(f); const {error}=await db.from("profiles").update({full_name:String(fd.get("full_name")||""),target_weight_kg:+fd.get("target_weight_kg")}).eq("id",user.id); if(error) return toast(error.message,true); toast("Saved"); }; }
 
 let monthlyChartObj=null, sportChartObj=null, weightChartObj=null, eleHrChartObj=null, monthDetailChartObj=null;
+function destroyCharts(){
+  [monthlyChartObj,sportChartObj,weightChartObj,eleHrChartObj,monthDetailChartObj].forEach(c=>{ try{ c?.destroy(); }catch(e){} });
+  monthlyChartObj=sportChartObj=weightChartObj=eleHrChartObj=monthDetailChartObj=null;
+}
+function safeChart(ctx){
+  if(!ctx) return null;
+  // Ensure canvas is inside chart-wrap with fixed height
+  let wrap=ctx.closest('.chart-wrap');
+  if(!wrap){
+    const newWrap=document.createElement('div');
+    newWrap.className='chart-wrap';
+    ctx.parentNode.insertBefore(newWrap, ctx);
+    newWrap.appendChild(ctx);
+    wrap=newWrap;
+  }
+  return ctx;
+}
 function renderDreeveCharts(){
   if(typeof Chart==='undefined') return;
   let allActs=[...records.activities];
@@ -332,28 +319,70 @@ function renderDreeveCharts(){
   const byMonth={}; for(let i=11;i>=0;i--){ const d=new Date(); d.setMonth(d.getMonth()-i); const k=d.toISOString().slice(0,7); byMonth[k]=0; }
   allActs.forEach(a=>{ const k=new Date(a.logged_at).toISOString().slice(0,7); if(byMonth[k]!==undefined){ if(metric==='distance') byMonth[k]+=Number(a.distance_km||0); else if(metric==='duration') byMonth[k]+=Number(a.duration_minutes||0); else if(metric==='calories') byMonth[k]+=Number(a.calories_burned||0); else byMonth[k]+=Number(a.distance_km||0); } });
   const labels=Object.keys(byMonth); const vals=labels.map(k=>Number(byMonth[k].toFixed(2)));
-  const ctx=document.getElementById('monthlyChart');
+
+  // MONTHLY - STABLE
+  let ctx=document.getElementById('monthlyChart');
+  ctx=safeChart(ctx);
   if(ctx){
-    if(monthlyChartObj) monthlyChartObj.destroy();
-    monthlyChartObj=new Chart(ctx,{type:'bar',data:{labels,datasets:[{data:vals,backgroundColor:'#c6ff00',borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,onClick:(e,els)=>{ if(els.length){ const m=labels[els[0].index]; const ch=$("#chartHint"); if(ch) ch.textContent='Drill: '+m; renderMonthDetail(m); switchView('monthlyView'); }},plugins:{legend:{display:false}},scales:{x:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'}},y:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'}}}}});
+    if(monthlyChartObj) { try{ monthlyChartObj.destroy(); }catch(e){} }
+    monthlyChartObj=new Chart(ctx,{
+      type:'bar',
+      data:{labels,datasets:[{data:vals,backgroundColor:'#c6ff00',borderRadius:6,borderSkipped:false,maxBarThickness:32}]},
+      options:{
+        responsive:true, maintainAspectRatio:false, animation:false, resizeDelay:250,
+        interaction:{mode:'index',intersect:false},
+        onClick:(e,els)=>{ if(els.length){ const m=labels[els[0].index]; const ch=$("#chartHint"); if(ch) ch.textContent='Drill: '+m; renderMonthDetail(m); switchView('monthlyView'); }},
+        plugins:{legend:{display:false},tooltip:{enabled:true,backgroundColor:'#161616',titleColor:'#ededed',bodyColor:'#8a8a8a'}},
+        scales:{x:{grid:{display:false},ticks:{color:'#8a8a8a',maxRotation:0,autoSkip:true},border:{display:false}},y:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'},border:{display:false},beginAtZero:true}}
+      }
+    });
   }
+  // SPORT - STABLE
   const bySport={}; allActs.forEach(a=>{ const s=a.activity_name||'Workout'; bySport[s]=(bySport[s]||0)+(metric==='duration'?Number(a.duration_minutes||0):Number(a.distance_km||0)); });
-  const ctx2=document.getElementById('sportChart');
+  let ctx2=document.getElementById('sportChart');
+  ctx2=safeChart(ctx2);
   if(ctx2&&Object.keys(bySport).length){
-    if(sportChartObj) sportChartObj.destroy();
-    sportChartObj=new Chart(ctx2,{type:'doughnut',data:{labels:Object.keys(bySport),datasets:[{data:Object.values(bySport),backgroundColor:['#c6ff00','#58a9ff','#ff7a86','#5de8b6','#ffcc66','#a88bff']}]},options:{responsive:true,maintainAspectRatio:false,onClick:(e,els)=>{ if(els.length){ const sport=Object.keys(bySport)[els[0].index]; const si=$("#searchAct"); if(si) si.value=sport; renderActivitiesTable(sport); switchView('activitiesView'); }},plugins:{legend:{position:'bottom',labels:{color:'#8a8a8a',boxWidth:12}}}}});
+    if(sportChartObj) { try{ sportChartObj.destroy(); }catch(e){} }
+    sportChartObj=new Chart(ctx2,{
+      type:'doughnut',
+      data:{labels:Object.keys(bySport),datasets:[{data:Object.values(bySport),backgroundColor:['#c6ff00','#58a9ff','#ff7a86','#5de8b6','#ffcc66','#a88bff'],borderWidth:0,hoverOffset:4}]},
+      options:{responsive:true,maintainAspectRatio:false,animation:false,resizeDelay:250,cutout:'62%',onClick:(e,els)=>{ if(els.length){ const sport=Object.keys(bySport)[els[0].index]; const si=$("#searchAct"); if(si) si.value=sport; renderActivitiesTable(sport); switchView('activitiesView'); }},plugins:{legend:{position:'bottom',labels:{color:'#8a8a8a',boxWidth:12,padding:14,usePointStyle:true}}}}
+    });
   }
+  // WEIGHT - STABLE
   const weights=[...records.body].sort((a,b)=>new Date(a.logged_at)-new Date(b.logged_at)).slice(-30);
-  const ctxW=document.getElementById('weightChart');
-  if(ctxW){ if(weightChartObj) weightChartObj.destroy(); if(weights.length){ weightChartObj=new Chart(ctxW,{type:'line',data:{labels:weights.map(w=>dayStr(w.logged_at).slice(5)),datasets:[{data:weights.map(w=>w.weight_kg),borderColor:'#c6ff00',backgroundColor:'rgba(198,255,0,0.15)',fill:true,tension:0.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'}},y:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'}}}}}); }
+  let ctxW=document.getElementById('weightChart');
+  ctxW=safeChart(ctxW);
+  if(ctxW){
+    if(weightChartObj) { try{ weightChartObj.destroy(); }catch(e){} }
+    if(weights.length){
+      weightChartObj=new Chart(ctxW,{
+        type:'line',
+        data:{labels:weights.map(w=>dayStr(w.logged_at).slice(5)),datasets:[{data:weights.map(w=>w.weight_kg),borderColor:'#c6ff00',backgroundColor:'rgba(198,255,0,0.15)',fill:true,tension:0.35,pointRadius:0,borderWidth:2}]},
+        options:{responsive:true,maintainAspectRatio:false,animation:false,resizeDelay:250,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#8a8a8a',maxTicksLimit:6},border:{display:false}},y:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'},border:{display:false}}}}
+      });
+    }
   }
 }
+
 function renderMonthDetail(ym){
-  const el=$("#monthDetailList"), canvas=$("#monthDetailChart"); if(!el) return;
+  const el=$("#monthDetailList"), canvas=document.getElementById('monthDetailChart'); if(!el) return;
   const acts=records.activities.filter(a=>new Date(a.logged_at).toISOString().startsWith(ym)).sort((a,b)=>new Date(a.logged_at)-new Date(b.logged_at));
-  if(!acts.length){ el.innerHTML=`<div class="muted" style="padding:20px">No activities in ${ym}</div>`; if(canvas) canvas.style.display='none'; return; }
+  if(!acts.length){ el.innerHTML=`<div class="muted" style="padding:20px">No activities in ${ym}</div>`; if(canvas){ canvas.style.display='none'; const wrap=canvas.closest('.chart-wrap'); if(wrap) wrap.style.display='none'; } return; }
   const byDay={}; acts.forEach(a=>{ const d=dayStr(a.logged_at); byDay[d]=(byDay[d]||0)+Number(a.distance_km||0); });
-  if(canvas){ canvas.style.display='block'; if(monthDetailChartObj) monthDetailChartObj.destroy(); monthDetailChartObj=new Chart(canvas,{type:'bar',data:{labels:Object.keys(byDay),datasets:[{data:Object.values(byDay),backgroundColor:'#c6ff00',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#8a8a8a'}},y:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'}}}}}); }
+  if(canvas){
+    let c=safeChart(canvas);
+    if(c){
+      c.style.display='block';
+      const wrap=c.closest('.chart-wrap'); if(wrap) wrap.style.display='block';
+      if(monthDetailChartObj) { try{ monthDetailChartObj.destroy(); }catch(e){} }
+      monthDetailChartObj=new Chart(c,{
+        type:'bar',
+        data:{labels:Object.keys(byDay),datasets:[{data:Object.values(byDay),backgroundColor:'#c6ff00',borderRadius:4,maxBarThickness:24}]},
+        options:{responsive:true,maintainAspectRatio:false,animation:false,resizeDelay:250,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#8a8a8a'}},y:{grid:{color:'#1e1e1e'},ticks:{color:'#8a8a8a'},beginAtZero:true}}}
+      });
+    }
+  }
   el.innerHTML=acts.map(a=>`<div class="row"><div><strong>${esc(a.activity_name)}</strong><br><small class="muted">${new Date(a.logged_at).toLocaleDateString()} • ${a.distance_km}km</small></div><span>${a.calories_burned||0} kcal</span></div>`).join('');
 }
 function renderActivitiesTable(filter=''){
